@@ -20,7 +20,7 @@ from napari_maskel.napari_layers import extract_skeleton_layers
 if TYPE_CHECKING:
     # These imports are only used for annotations and are therefore
     # guarded by TYPE_CHECKING to avoid runtime import-time coupling.
-    from napari.layers import Image  # noqa: F401
+    from napari.layers import Labels  # noqa: F401
 
 from maskel.config import (
     COLORABLE_BRANCH_PROPERTIES,
@@ -59,7 +59,7 @@ class VesselAnalysisWidget(Container):
     def _setup_ui(self):
         # ---------- extraction parameters (magicgui) ----------
         def _extraction_params(
-            image: "napari.layers.Image",  # noqa: F821, UP037
+            image: "napari.layers.Labels",  # noqa: F821, UP037
             extract_branches: bool = False,
             branch_color_property: str = "tortuosity",
             extract_branch_text: bool = False,
@@ -81,7 +81,7 @@ class VesselAnalysisWidget(Container):
 
         extraction_gui = magicgui(
             _extraction_params,
-            image={"label": "Input image"},
+            image={"label": "Input segmentation (labels layer)"},
             extract_branches={"annotation": bool, "value": False},
             branch_color_property={
                 "annotation": str,
@@ -589,26 +589,17 @@ class VesselAnalysisWidget(Container):
                     )
                 )
 
-            if result.graph is not None and result.branch_data is not None:
-                layers = extract_skeleton_layers(
-                    result.skeleton,
-                    img.name,
-                    graph=result.graph,
-                    branch_data=result.branch_data,
-                    config=pipeline_config.extraction,
-                    features=result.summary_features
-                    if pipeline_config.extraction.summary
-                    else None,
-                    radius_matrix=result.radius_matrix,
-                )
-                for data, meta, layer_type in layers:
-                    try:
-                        layer = Layer.create(data, meta, layer_type)
-                        self.viewer.add_layer(layer)
-                    except Exception as e:  # noqa: BLE001
-                        show_info(
-                            f"Failed to add layer {meta.get('name', '<unnamed>')}: {e}"
-                        )
+            layers = extract_skeleton_layers(
+                result, img.name, config=pipeline_config.extraction
+            )
+            for data, meta, layer_type in layers:
+                try:
+                    layer = Layer.create(data, meta, layer_type)
+                    self.viewer.add_layer(layer)
+                except Exception as e:  # noqa: BLE001
+                    show_info(
+                        f"Failed to add layer {meta.get('name', '<unnamed>')}: {e}"
+                    )
 
             # -- save results to disk if output directory is set ----------
             if self._output_dir is not None:

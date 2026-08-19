@@ -17,7 +17,7 @@ Before `maskel` has its first PyPI release, point uv at a local checkout instead
 
 ## Usage
 
-Open a binary vessel segmentation (2D or 3D) as an image layer, then run **Analyze Vessels** from the Maskel plugin menu.
+Open a vessel segmentation (2D or 3D) as a **labels layer**, then run **Analyze Vessels** from the Maskel plugin menu. A plain binary mask is treated as a single object; a multi-object instance segmentation map (more than one distinct nonzero label) is skeletonized independently per object — including two objects that touch, which stay correctly separate rather than merging into one skeleton. Every branch, node, and summary point is tagged with the `object_id` it came from, and the branches layer can be colored by `object_id` (**Branch color by** dropdown).
 
 Inside the widget, tune extraction settings and use **Save Config** to export a reusable JSON preset — the same preset the [maskel CLI](https://github.com/bionetslab/maskel) consumes for batch processing (`maskel run --config`).
 

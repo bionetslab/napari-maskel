@@ -3,42 +3,31 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 from maskel.config import ExtractionConfig
-from maskel.features import compute_tortuosity, extract_node_features
-from skan import Skeleton
+from maskel.pipeline import AnalysisResult, ObjectGraph
 
 if TYPE_CHECKING:
     from napari.types import LayerDataTuple  # noqa: F401
 
 
 def extract_skeleton_layers(
-    skeleton: np.ndarray,
+    result: AnalysisResult,
     base_name: str,
-    graph: Skeleton,
-    branch_data,
     config: ExtractionConfig | None = None,
-    features: dict[str, float] | None = None,
-    radius_matrix: np.ndarray | None = None,
 ) -> list["napari.types.LayerDataTuple"]:  # noqa: F821
-    """Extract visualization layers from a binary skeleton.
+    """Build napari visualization layers from a maskel `AnalysisResult`.
 
     Parameters
     ----------
-    skeleton : ndarray
-        Binary 2D or 3D skeleton array.
+    result : AnalysisResult
+        Output of `maskel.pipeline.analyze_binary_image`. May cover more than
+        one object (see `AnalysisResult`/`ObjectGraph`); layers combine all
+        objects, tagged with ``object_id`` as a layer property.
     base_name : str
         Base name for layer naming.
-    graph : Skeleton
-        Pre-built skan Skeleton graph (e.g. from `build_vessel_graph`).
-    branch_data : DataFrame
-        Pre-computed branch summary (e.g. from `skan.summarize(graph, ...)`).
     config : ExtractionConfig, optional
         Configuration for what to extract. Defaults to all except fractal_dimension.
-    features : dict, optional
-        Pre-computed summary feature dictionary (e.g. from `extract_vessel_features`).
-    radius_matrix : ndarray, optional
-        Radius matrix from `compute_radii`. When provided, a napari image layer
-        is added showing per-pixel vessel radius on the skeleton.
     """
     if config is None:
         config = ExtractionConfig()
@@ -48,8 +37,7 @@ def extract_skeleton_layers(
     if config.branches:
         branch_layer = _extract_branch_features_layer(
             base_name,
-            graph,
-            branch_data,
+            result.object_graphs,
             color_property=config.branch_color_property,
         )
         if branch_layer is not None:
@@ -60,24 +48,21 @@ def extract_skeleton_layers(
                 layers.append(text_layer)
 
     if config.nodes:
-        node_layer = _extract_node_features_layer(
-            base_name, graph, branch_data, radius_matrix=radius_matrix
-        )
+        node_layer = _extract_node_features_layer(base_name, result.node_records)
         if node_layer is not None:
             layers.append(node_layer)
 
     if config.summary:
-        if features is None:
-            raise ValueError("features is required when summary is enabled")
         summary_layer = _extract_summary_features_layer(
-            skeleton,
-            base_name,
-            features=features,
+            base_name, result.summary_features, result.object_graphs
         )
-        layers.append(summary_layer)
+        if summary_layer is not None:
+            layers.append(summary_layer)
 
-    if radius_matrix is not None:
-        radius_layer = _extract_radius_layer(radius_matrix, skeleton, base_name)
+    if result.radius_matrix is not None:
+        radius_layer = _extract_radius_layer(
+            result.radius_matrix, result.skeleton, base_name
+        )
         if radius_layer is not None:
             layers.append(radius_layer)
 
@@ -105,42 +90,49 @@ def _extract_radius_layer(
 
 def _extract_branch_features_layer(
     base_name: str,
-    graph: Skeleton,
-    branch_data,
+    object_graphs: list[ObjectGraph],
     color_property: str = "tortuosity",
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
-    """Extract branch features and generate paths layer.
+    """Build one combined branch-paths layer spanning all objects.
 
     Parameters
     ----------
     base_name : str
         Base name used for layer naming.
-    graph : Skeleton
-        Pre-built skan Skeleton graph.
-    branch_data : DataFrame
-        Pre-computed branch summary from `skan.summarize`.
+    object_graphs : list[ObjectGraph]
+        Per-object skeleton graphs (from `AnalysisResult.object_graphs`).
+        Branch path coordinates are offset into global image coordinates
+        using each object's own crop offset.
     color_property : str
-        Branch property to use for edge coloring. Must be a numeric column
-        in branch_data. Defaults to "tortuosity".
+        Branch property to use for edge coloring (including ``object_id``).
+        Must be a numeric column. Defaults to "tortuosity".
 
     Returns
     -------
     LayerDataTuple or None
-        Napari shapes layer for branch paths, or None if skeleton has no branches.
+        Napari shapes layer for branch paths, or None if no object has any
+        branches.
     """
-    if branch_data.empty:
+    frames = []
+    path_data = []
+
+    for og in object_graphs:
+        if og.branch_data.empty:
+            continue
+        branch_data = og.branch_data.reset_index(drop=True).copy()
+        branch_data["branch_id"] = np.arange(len(branch_data), dtype=np.int64)
+        branch_data["object_id"] = og.object_id
+
+        offset = np.array(og.offset, dtype=float)
+        for i in range(len(branch_data)):
+            path_data.append(og.graph.path_coordinates(i) + offset)
+
+        frames.append(branch_data)
+
+    if not frames:
         return None
 
-    branch_data = branch_data.reset_index(drop=True).copy()
-    branch_data["branch_id"] = np.arange(len(branch_data), dtype=np.int64)
-
-    euclidean = branch_data["euclidean-distance"].to_numpy(dtype=float)
-    branch_len = branch_data["branch-distance"].to_numpy(dtype=float)
-    tortuosity = compute_tortuosity(branch_len, euclidean)
-    tortuosity = np.nan_to_num(tortuosity, nan=1.0)
-    branch_data["tortuosity"] = tortuosity
-
-    path_data = [graph.path_coordinates(i) for i in range(len(branch_data))]
+    branch_data = pd.concat(frames, ignore_index=True)
 
     meta = {
         "name": f"{base_name}_branches",
@@ -191,7 +183,7 @@ def _extract_branch_text_layer(
         "border_color": "transparent",
         "opacity": 1.0,
         "text": {
-            "string": "id {branch_id} | L={branch-distance:.1f} | T={tortuosity:.2f}",
+            "string": "obj {object_id} | id {branch_id} | L={branch-distance:.1f} | T={tortuosity:.2f}",
             "size": 9,
             "color": "white",
             "anchor": "center",
@@ -201,31 +193,41 @@ def _extract_branch_text_layer(
 
 
 def _extract_summary_features_layer(
-    skeleton: np.ndarray,
     base_name: str,
-    features: dict[str, float],
-) -> "napari.types.LayerDataTuple":  # noqa: F821
-    """Create a summary point layer displaying global skeleton features.
+    summary_features: list[dict[str, float]],
+    object_graphs: list[ObjectGraph],
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821
+    """Create a summary point layer, one point per object, at that object's
+    own skeleton-graph centroid (in global image coordinates).
 
     Parameters
     ----------
-    skeleton : ndarray
-        Binary 2D or 3D skeleton array. Used to position the summary label.
     base_name : str
         Base name for layer naming.
-    features : dict[str, float]
-        Pre-computed summary feature dictionary
-        (e.g. from `extract_vessel_features`).
+    summary_features : list[dict[str, float]]
+        Pre-computed per-object summary feature dictionaries (e.g. from
+        `AnalysisResult.summary_features`), each including ``object_id``.
+    object_graphs : list[ObjectGraph]
+        Per-object skeleton graphs, used only to position each object's
+        summary point. An object with no graph (fully empty skeleton) is
+        skipped.
     """
-    meta_features = {k: [v] for k, v in features.items()}
+    graphs_by_id = {og.object_id: og for og in object_graphs}
 
-    fg = np.argwhere(skeleton > 0)
-    if fg.size:
-        center = fg.mean(axis=0, dtype=float)
-    else:
-        center = np.zeros(skeleton.ndim, dtype=float)
+    points = []
+    rows = []
+    for row in summary_features:
+        og = graphs_by_id.get(row.get("object_id"))
+        if og is None:
+            continue
+        center = og.graph.coordinates.mean(axis=0) + np.array(og.offset, dtype=float)
+        points.append(center)
+        rows.append(row)
 
-    points = np.asarray([center], dtype=float)
+    if not points:
+        return None
+
+    meta_features = {k: [r.get(k) for r in rows] for k in rows[0]}
     meta = {
         "name": f"{base_name}_summary",
         "properties": meta_features,
@@ -235,29 +237,33 @@ def _extract_summary_features_layer(
         "border_color": "yellow",
         "opacity": 0.9,
         "text": {
-            "string": "summary",
+            "string": "object {object_id}",
             "size": 10,
             "color": "yellow",
             "anchor": "upper_left",
         },
     }
-    return (points, meta, "points")
+    return (np.asarray(points, dtype=float), meta, "points")
 
 
 def _extract_node_features_layer(
     base_name: str,
-    graph: Skeleton,
-    branch_data,
-    radius_matrix: np.ndarray | None = None,
+    node_records: list[dict[str, object]],
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
-    """Create a points layer showing graph nodes colored by degree."""
-    node_records = extract_node_features(
-        graph, branch_data, radius_matrix=radius_matrix
-    )
+    """Create a points layer showing graph nodes colored by degree.
+
+    Parameters
+    ----------
+    base_name : str
+        Base name for layer naming.
+    node_records : list[dict[str, object]]
+        Pre-computed node records (e.g. from `AnalysisResult.node_records`),
+        already in global image coordinates and tagged with ``object_id``.
+    """
     if not node_records:
         return None
 
-    ndim = graph.coordinates.shape[1]
+    ndim = sum(1 for k in node_records[0] if k.startswith("coord_"))
     points = np.array(
         [tuple(r[f"coord_{d}"] for d in range(ndim)) for r in node_records], dtype=float
     )

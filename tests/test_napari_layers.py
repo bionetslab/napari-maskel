@@ -1,50 +1,43 @@
 import numpy as np
 import pytest
-from maskel.config import ExtractionConfig
-from maskel.features import build_vessel_graph, compute_radii, extract_vessel_features
-from skan import summarize
+from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
+from maskel.pipeline import analyze_binary_image
 
 from napari_maskel.napari_layers import extract_skeleton_layers
 
 
-def _make_2d_cross_skeleton() -> np.ndarray:
-    img = np.zeros((32, 32), dtype=np.uint8)
-    img[16, :] = 1
-    img[:, 16] = 1
+def _cross_mask(size: int = 32) -> np.ndarray:
+    img = np.zeros((size, size), dtype=np.uint8)
+    img[size // 2, :] = 1
+    img[:, size // 2] = 1
     return img
 
 
-def _features_for(skeleton, graph, branch_data):
-    return extract_vessel_features(
-        skeleton, graph, branch_data, binary=skeleton, include_fractal=False
+def _two_object_mask() -> np.ndarray:
+    """40x40 canvas with two disjoint 12px crosses, labeled 5 and 9."""
+    mask = np.zeros((40, 40), dtype=np.uint8)
+    mask[5, 2:14] = 5
+    mask[2:14, 8] = 5
+    mask[25, 22:34] = 9
+    mask[22:34, 28] = 9
+    return mask
+
+
+def _analyze(image, **extraction_kwargs):
+    config = PipelineConfig(
+        extraction=ExtractionConfig(**extraction_kwargs), output=OutputConfig()
     )
+    return analyze_binary_image(image, config)
 
 
 class TestExtractSkeletonLayers:
     @pytest.fixture
-    def skeleton(self):
-        return _make_2d_cross_skeleton()
+    def result(self):
+        return _analyze(_cross_mask(), branches=True, summary=True)
 
-    @pytest.fixture
-    def graph(self, skeleton):
-        return build_vessel_graph(skeleton)
-
-    @pytest.fixture
-    def branch_data(self, graph):
-        return summarize(graph, separator="-")
-
-    @pytest.fixture
-    def features(self, skeleton, graph, branch_data):
-        return _features_for(skeleton, graph, branch_data)
-
-    def test_with_config_returns_layers(self, skeleton, graph, branch_data, features):
+    def test_returns_layer_tuples(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=ExtractionConfig(branches=True, summary=True),
-            features=features,
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
         )
         assert len(layers) > 0
         for layer in layers:
@@ -52,99 +45,58 @@ class TestExtractSkeletonLayers:
             assert isinstance(layer[1], dict)
             assert isinstance(layer[2], str)
 
-    def test_with_config_includes_branch_layer(
-        self, skeleton, graph, branch_data, features
-    ):
+    def test_includes_branch_layer(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=ExtractionConfig(branches=True, summary=True),
-            features=features,
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
         )
-        layer_types = [layer[2] for layer in layers]
-        assert "shapes" in layer_types
+        assert "shapes" in [layer[2] for layer in layers]
 
-    def test_with_config_includes_summary_layer(
-        self, skeleton, graph, branch_data, features
-    ):
+    def test_includes_summary_layer(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=ExtractionConfig(branches=True, summary=True),
-            features=features,
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
         )
         layer_names = [layer[1].get("name", "") for layer in layers]
         assert any("_summary" in name for name in layer_names)
 
-    def test_with_config_includes_two_point_layers(
-        self, skeleton, graph, branch_data, features
-    ):
+    def test_includes_two_point_layers_with_branch_text(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
+            result,
             "test",
-            graph,
-            branch_data,
             config=ExtractionConfig(branches=True, branch_text=True, summary=True),
-            features=features,
         )
         layer_types = [layer[2] for layer in layers]
-        num_points = layer_types.count("points")
-        assert num_points == 2
+        assert layer_types.count("points") == 2
 
-    def test_branches_disabled(self, skeleton, graph, branch_data, features):
-        config = ExtractionConfig(branches=False)
+    def test_branches_disabled(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=config,
-            features=features,
+            result, "test", config=ExtractionConfig(branches=False)
         )
-        layer_types = [layer[2] for layer in layers]
-        assert "shapes" not in layer_types
+        assert "shapes" not in [layer[2] for layer in layers]
 
-    def test_branch_text_disabled(self, skeleton, graph, branch_data, features):
-        config = ExtractionConfig(branches=True, branch_text=False, summary=True)
+    def test_branch_text_disabled(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
+            result,
             "test",
-            graph,
-            branch_data,
-            config=config,
-            features=features,
+            config=ExtractionConfig(branches=True, branch_text=False, summary=True),
         )
         layer_names = [layer[1].get("name", "") for layer in layers]
         assert any("_summary" in name for name in layer_names)
         assert not any("branch_text" in name for name in layer_names)
 
-    def test_summary_disabled(self, skeleton, graph, branch_data):
-        config = ExtractionConfig(branches=True, branch_text=True, summary=False)
+    def test_summary_disabled(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
+            result,
             "test",
-            graph,
-            branch_data,
-            config=config,
+            config=ExtractionConfig(branches=True, branch_text=True, summary=False),
         )
         layer_types = [layer[2] for layer in layers]
         assert "points" in layer_types
         layer_names = [layer[1].get("name", "") for layer in layers]
         assert not any("summary" in name for name in layer_names)
 
-    def test_with_features_passed(self, skeleton, graph, branch_data, features):
-        config = ExtractionConfig(summary=True)
+    def test_summary_layer_has_properties(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=config,
-            features=features,
+            result, "test", config=ExtractionConfig(summary=True)
         )
         summary_layer = [
             layer for layer in layers if layer[1].get("name", "").endswith("_summary")
@@ -152,103 +104,44 @@ class TestExtractSkeletonLayers:
         assert len(summary_layer) == 1
         assert "properties" in summary_layer[0][1]
 
-    def test_with_radius_matrix(self, skeleton, graph, branch_data, features):
-        radius_matrix, _ = compute_radii(skeleton, skeleton)
+    def test_with_radius_matrix(self):
+        result = _analyze(_cross_mask(), summary=True, vessel_radius=True)
         layers = extract_skeleton_layers(
-            skeleton,
+            result,
             "test",
-            graph,
-            branch_data,
-            features=features,
-            radius_matrix=radius_matrix,
+            config=ExtractionConfig(summary=True, vessel_radius=True),
         )
-        layer_types = [layer[2] for layer in layers]
-        assert "image" in layer_types
+        assert "image" in [layer[2] for layer in layers]
 
-    def test_with_empty_radius_matrix_skips_layer(
-        self, skeleton, graph, branch_data, features
-    ):
-        radius_matrix = np.zeros_like(skeleton, dtype=np.float64)
+    def test_layer_names_include_base_name(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            features=features,
-            radius_matrix=radius_matrix,
-        )
-        layer_types = [layer[2] for layer in layers]
-        assert "image" not in layer_types
-
-    def test_layer_names_include_base_name(
-        self, skeleton, graph, branch_data, features
-    ):
-        base_name = "my_vessels"
-        layers = extract_skeleton_layers(
-            skeleton,
-            base_name,
-            graph,
-            branch_data,
-            config=ExtractionConfig(branches=True, summary=True),
-            features=features,
+            result, "my_vessels", config=ExtractionConfig(branches=True, summary=True)
         )
         assert len(layers) > 0
         for layer in layers:
-            assert base_name in layer[1].get("name", "")
+            assert "my_vessels" in layer[1].get("name", "")
 
-    def test_branch_layer_has_properties(self, skeleton, graph, branch_data, features):
+    def test_branch_layer_has_properties(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            branch_data,
-            config=ExtractionConfig(branches=True, summary=True),
-            features=features,
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
         )
         branch_layer = next(layer for layer in layers if layer[2] == "shapes")
-        props = branch_layer[1]["properties"]
-        assert len(props) > 0
+        assert len(branch_layer[1]["properties"]) > 0
 
-    def test_empty_branch_data_skips_shapes_layer(self, skeleton, graph, features):
-        data = summarize(graph, separator="-").iloc[0:0]
-        layers = extract_skeleton_layers(
-            skeleton,
-            "test",
-            graph,
-            data,
-            config=ExtractionConfig(branches=True, branch_text=False),
-            features=features,
+    def test_empty_skeleton_produces_no_layers(self):
+        result = _analyze(
+            np.zeros((10, 10), dtype=np.uint8), branches=True, summary=True
         )
-        layer_types = [layer[2] for layer in layers]
-        assert "shapes" not in layer_types
-
-    def test_empty_skeleton(self):
-        skeleton = np.zeros((10, 10), dtype=np.uint8)
-        seeds = _make_2d_cross_skeleton()
-        graph = build_vessel_graph(seeds)
-        branch_data = summarize(graph, separator="-")
-        features = _features_for(seeds, graph, branch_data)
         layers = extract_skeleton_layers(
-            skeleton,
-            "empty",
-            graph,
-            branch_data,
-            config=ExtractionConfig(summary=True),
-            features=features,
+            result, "empty", config=ExtractionConfig(branches=True, summary=True)
         )
-        summary = [layer for layer in layers if "_summary" in layer[1].get("name", "")]
-        assert len(summary) == 1
+        assert layers == []
 
-    def test_branch_text_layer_has_text_config(
-        self, skeleton, graph, branch_data, features
-    ):
+    def test_branch_text_layer_has_text_config(self, result):
         layers = extract_skeleton_layers(
-            skeleton,
+            result,
             "test",
-            graph,
-            branch_data,
             config=ExtractionConfig(branches=True, branch_text=True, summary=True),
-            features=features,
         )
         text_layers = [
             layer
@@ -261,14 +154,47 @@ class TestExtractSkeletonLayers:
         assert "string" in text_config
         assert "size" in text_config
 
-    def test_summary_with_none_features_crashes(self, skeleton, graph, branch_data):
-        config = ExtractionConfig(summary=True)
-        with pytest.raises(ValueError, match="features is required"):
-            extract_skeleton_layers(
-                skeleton,
-                "test",
-                graph,
-                branch_data,
-                config=config,
-                features=None,
-            )
+
+class TestMultiObjectLayers:
+    @pytest.fixture
+    def result(self):
+        return _analyze(_two_object_mask(), branches=True, nodes=True, summary=True)
+
+    def test_branch_layer_has_object_id_property(self, result):
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
+        )
+        branch_layer = next(layer for layer in layers if layer[2] == "shapes")
+        props = branch_layer[1]["properties"]
+        assert set(props["object_id"]) == {5, 9}
+
+    def test_branch_layer_colorable_by_object_id(self, result):
+        layers = extract_skeleton_layers(
+            result,
+            "test",
+            config=ExtractionConfig(
+                branches=True, summary=True, branch_color_property="object_id"
+            ),
+        )
+        branch_layer = next(layer for layer in layers if layer[2] == "shapes")
+        assert branch_layer[1]["edge_color"] == "object_id"
+        assert branch_layer[1]["edge_colormap"] == "turbo"
+
+    def test_summary_layer_has_one_point_per_object(self, result):
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(summary=True)
+        )
+        summary_layer = next(
+            layer for layer in layers if layer[1].get("name", "").endswith("_summary")
+        )
+        assert len(summary_layer[0]) == 2
+        assert set(summary_layer[1]["properties"]["object_id"]) == {5, 9}
+
+    def test_node_layer_has_object_id_property(self, result):
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(nodes=True)
+        )
+        node_layer = next(
+            layer for layer in layers if layer[1].get("name", "").endswith("_nodes")
+        )
+        assert set(node_layer[1]["properties"]["object_id"]) == {5, 9}
