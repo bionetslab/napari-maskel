@@ -1,0 +1,17 @@
+name: napari-maskel
+display_name: Maskel
+version: 0.1.0
+categories:
+- Image Processing
+- Segmentation
+napari: 0.4
+description: Vessel skeletonization and feature extraction for napari
+license: MIT
+contributions:
+  commands:
+  - id: napari-maskel.analyze_vessels
+    title: Analyze Vessels
+    python_name: napari_maskel._napari:VesselAnalysisWidget
+  widgets:
+  - command: napari-maskel.analyze_vessels
+    display_name: Analyze Vessels

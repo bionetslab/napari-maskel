@@ -1,0 +1,41 @@
+[project]
+name = "napari-maskel"
+license = "MIT"
+version = "0.1.0"
+description = "napari plugin for maskel: vessel skeletonization and feature extraction"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "maskel>=0.1.0,<0.2.0",
+    "napari[all]",
+    "napari-assistant>=0.6.0",
+    "napari-simpleitk-image-processing>=0.4.9",
+    "napari-skimage>=0.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bionetslab/napari-maskel"
+Repository = "https://github.com/bionetslab/napari-maskel"
+Documentation = "https://github.com/bionetslab/napari-maskel#readme"
+Changelog = "https://github.com/bionetslab/napari-maskel/releases"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["napari_maskel*"]
+
+[tool.setuptools.package-data]
+napari_maskel = ["napari.yaml"]
+
+[project.entry-points."napari.manifest"]
+napari-maskel = "napari_maskel:napari.yaml"
+
+[tool.pytest.ini_options]
+markers = ["slow: big regression tests (skip with -m 'not slow')"]

@@ -1,0 +1,120 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  build-release-publish:
+    name: Build, Release, Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run pytest tests
+
+      - name: Bump version in pyproject.toml and napari.yaml
+        id: bump_version
+        env:
+          BUMP_TYPE: ${{ github.event.inputs.bump }}
+        run: |
+          uv add PyYAML
+          uv run python - <<'PY'
+          import os
+          import re
+          import yaml
+
+          bump = os.environ["BUMP_TYPE"]
+
+          # --- pyproject.toml ---
+          with open("pyproject.toml", "r", encoding="utf-8") as f:
+              content = f.read()
+
+          m = re.search(r'^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"\s*$', content, re.MULTILINE)
+          if not m:
+              raise SystemExit("Could not find project version in pyproject.toml")
+
+          major, minor, patch = map(int, m.groups())
+          if bump == "major":
+              major += 1
+              minor = 0
+              patch = 0
+          elif bump == "minor":
+              minor += 1
+              patch = 0
+          elif bump == "patch":
+              patch += 1
+          else:
+              raise SystemExit(f"Unsupported bump type: {bump}")
+
+          new_version = f"{major}.{minor}.{patch}"
+          new_line = f'version = "{new_version}"'
+          content = re.sub(r'^version\s*=\s*"\d+\.\d+\.\d+"\s*$', new_line, content, count=1, flags=re.MULTILINE)
+
+          with open("pyproject.toml", "w", encoding="utf-8") as f:
+              f.write(content)
+
+          # --- napari.yaml ---
+          with open("napari_maskel/napari.yaml", "r") as f:
+              manifest = yaml.safe_load(f)
+          manifest["version"] = new_version
+          with open("napari_maskel/napari.yaml", "w") as f:
+              yaml.dump(manifest, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"new_version={new_version}\n")
+          PY
+          uv sync # updates version in lockfile
+
+      - name: Commit, tag, and push
+        env:
+          NEW_VERSION: ${{ steps.bump_version.outputs.new_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git add uv.lock
+          git add napari_maskel/napari.yaml
+          git commit -m "chore: release ${NEW_VERSION} [no ci]"
+          git tag "${NEW_VERSION}"
+          git push origin HEAD
+          git push origin "${NEW_VERSION}"
+
+      - name: Build
+        run: uv build
+
+      - name: Create GitHub release and upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.bump_version.outputs.new_version }}
+        run: |
+          gh release create "${NEW_VERSION}" dist/* --title "${NEW_VERSION}" --notes "Release ${NEW_VERSION}"
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
