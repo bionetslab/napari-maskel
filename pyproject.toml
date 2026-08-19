@@ -2,7 +2,7 @@
 name = "napari-maskel"
 license = "MIT"
 version = "0.1.0"
-description = "napari plugin for maskel: vessel skeletonization and feature extraction"
+description = "napari plugin for maskel: mask skeletonization and feature extraction"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 from maskel.config import ExtractionConfig
-from maskel.pipeline import AnalysisResult, ObjectGraph
+from maskel.pipeline import AnalysisResult, ObjectResult
 
 if TYPE_CHECKING:
     from napari.types import LayerDataTuple  # noqa: F401
@@ -21,9 +21,9 @@ def extract_skeleton_layers(
     Parameters
     ----------
     result : AnalysisResult
-        Output of `maskel.pipeline.analyze_binary_image`. May cover more than
-        one object (see `AnalysisResult`/`ObjectGraph`); layers combine all
-        objects, tagged with ``object_id`` as a layer property.
+        Output of `maskel.pipeline.analyze_segmentation_mask`. May cover more
+        than one object (see `AnalysisResult`/`ObjectResult`); layers combine
+        all objects, tagged with ``object_id`` as a layer property.
     base_name : str
         Base name for layer naming.
     config : ExtractionConfig, optional
@@ -37,7 +37,7 @@ def extract_skeleton_layers(
     if config.branches:
         branch_layer = _extract_branch_features_layer(
             base_name,
-            result.object_graphs,
+            result.objects,
             color_property=config.branch_color_property,
         )
         if branch_layer is not None:
@@ -53,9 +53,7 @@ def extract_skeleton_layers(
             layers.append(node_layer)
 
     if config.summary:
-        summary_layer = _extract_summary_features_layer(
-            base_name, result.summary_features, result.object_graphs
-        )
+        summary_layer = _extract_summary_features_layer(base_name, result.objects)
         if summary_layer is not None:
             layers.append(summary_layer)
 
@@ -74,7 +72,7 @@ def _extract_radius_layer(
     skeleton: np.ndarray,
     base_name: str,
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
-    """Create an image layer showing per-pixel vessel radius on the skeleton."""
+    """Create an image layer showing per-pixel mask radius on the skeleton."""
     if not np.any(radius_matrix):
         return None
 
@@ -90,7 +88,7 @@ def _extract_radius_layer(
 
 def _extract_branch_features_layer(
     base_name: str,
-    object_graphs: list[ObjectGraph],
+    objects: list[ObjectResult],
     color_property: str = "tortuosity",
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Build one combined branch-paths layer spanning all objects.
@@ -99,10 +97,10 @@ def _extract_branch_features_layer(
     ----------
     base_name : str
         Base name used for layer naming.
-    object_graphs : list[ObjectGraph]
-        Per-object skeleton graphs (from `AnalysisResult.object_graphs`).
-        Branch path coordinates are offset into global image coordinates
-        using each object's own crop offset.
+    objects : list[ObjectResult]
+        Per-object results (from `AnalysisResult.objects`). Branch path
+        coordinates are offset into global image coordinates using each
+        object's own crop offset.
     color_property : str
         Branch property to use for edge coloring (including ``object_id``).
         Must be a numeric column. Defaults to "tortuosity".
@@ -116,16 +114,16 @@ def _extract_branch_features_layer(
     frames = []
     path_data = []
 
-    for og in object_graphs:
-        if og.branch_data.empty:
+    for obj in objects:
+        if obj.graph is None or obj.branch_data is None or obj.branch_data.empty:
             continue
-        branch_data = og.branch_data.reset_index(drop=True).copy()
+        branch_data = obj.branch_data.reset_index(drop=True).copy()
         branch_data["branch_id"] = np.arange(len(branch_data), dtype=np.int64)
-        branch_data["object_id"] = og.object_id
+        branch_data["object_id"] = obj.object_id
 
-        offset = np.array(og.offset, dtype=float)
+        offset = np.array(obj.offset, dtype=float)
         for i in range(len(branch_data)):
-            path_data.append(og.graph.path_coordinates(i) + offset)
+            path_data.append(obj.graph.path_coordinates(i) + offset)
 
         frames.append(branch_data)
 
@@ -194,8 +192,7 @@ def _extract_branch_text_layer(
 
 def _extract_summary_features_layer(
     base_name: str,
-    summary_features: list[dict[str, float]],
-    object_graphs: list[ObjectGraph],
+    objects: list[ObjectResult],
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Create a summary point layer, one point per object, at that object's
     own skeleton-graph centroid (in global image coordinates).
@@ -204,25 +201,19 @@ def _extract_summary_features_layer(
     ----------
     base_name : str
         Base name for layer naming.
-    summary_features : list[dict[str, float]]
-        Pre-computed per-object summary feature dictionaries (e.g. from
-        `AnalysisResult.summary_features`), each including ``object_id``.
-    object_graphs : list[ObjectGraph]
-        Per-object skeleton graphs, used only to position each object's
-        summary point. An object with no graph (fully empty skeleton) is
-        skipped.
+    objects : list[ObjectResult]
+        Per-object results (from `AnalysisResult.objects`). An object with no
+        summary features (summary disabled) or no graph (fully empty
+        skeleton) contributes no point.
     """
-    graphs_by_id = {og.object_id: og for og in object_graphs}
-
     points = []
     rows = []
-    for row in summary_features:
-        og = graphs_by_id.get(row.get("object_id"))
-        if og is None:
+    for obj in objects:
+        if not obj.summary_features or obj.graph is None:
             continue
-        center = og.graph.coordinates.mean(axis=0) + np.array(og.offset, dtype=float)
+        center = obj.graph.coordinates.mean(axis=0) + np.array(obj.offset, dtype=float)
         points.append(center)
-        rows.append(row)
+        rows.append(obj.summary_features)
 
     if not points:
         return None

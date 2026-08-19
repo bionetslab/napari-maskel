@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
-from maskel.pipeline import analyze_binary_image
+from maskel.pipeline import analyze_segmentation_mask
 
 from napari_maskel.napari_layers import extract_skeleton_layers
 
@@ -27,7 +27,7 @@ def _analyze(image, **extraction_kwargs):
     config = PipelineConfig(
         extraction=ExtractionConfig(**extraction_kwargs), output=OutputConfig()
     )
-    return analyze_binary_image(image, config)
+    return analyze_segmentation_mask(image, config)
 
 
 class TestExtractSkeletonLayers:

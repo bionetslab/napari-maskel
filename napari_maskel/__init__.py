@@ -1,1 +1,1 @@
-"""napari plugin for maskel: vessel skeletonization and feature extraction."""
+"""napari plugin for maskel: mask skeletonization and feature extraction."""
