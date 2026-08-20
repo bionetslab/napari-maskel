@@ -1,4 +1,4 @@
-"""Smoke tests for MaskAnalysisWidget construction and spacing-field wiring.
+"""Smoke tests for MaskAnalysisWidget construction, layout, and spacing-field wiring.
 
 These run headless (QT_QPA_PLATFORM=offscreen) and use a plain mock in place
 of a real napari.Viewer, since MaskAnalysisWidget.__init__ never calls
@@ -15,6 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
+from qtpy.QtWidgets import QPushButton, QScrollArea
 
 from napari_maskel._napari import MaskAnalysisWidget
 
@@ -49,6 +50,111 @@ def _select_image(widget, layer):
     """
     widget.image_widget.choices = (layer,)
     widget.image_widget.value = layer
+
+
+# -- scrollable / collapsible layout --------------------------------------
+
+
+def test_constructs_and_is_scrollable(widget):
+    # scrollable=True wraps the whole widget in a scroll area so it's never
+    # clipped by napari's dock panel, regardless of content height.
+    assert widget._scrollable is True
+
+
+def test_native_exposes_the_scroll_area_for_napari(widget):
+    # napari's add_dock_widget embeds `widget.native` verbatim, but
+    # magicgui's own `.native` deliberately returns the *unwrapped* content
+    # widget when scrollable=True - without overriding it, napari would
+    # discard the scroll area and vertical scrolling would never take
+    # effect once docked.
+    assert isinstance(widget.native, QScrollArea)
+    from qtpy.QtCore import Qt
+
+    assert (
+        widget.native.horizontalScrollBarPolicy()
+        == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    assert (
+        widget.native.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
+
+
+def test_all_groups_collapsible_and_expanded_by_default(widget):
+    for name in (
+        "_spacing_collapsible",
+        "_extraction_collapsible",
+        "_cleanup_collapsible",
+        "_advanced_collapsible",
+        "_output_collapsible",
+        "_outdir_collapsible",
+        "_config_collapsible",
+    ):
+        assert getattr(widget, name).isExpanded() is True
+
+
+def test_group_order_matches_original_layout(widget):
+    # image selector, then every group in its original relative order, then
+    # the Analyze button last. Regression test for a bug where mixing
+    # self.append() with raw layout insertions silently reordered widgets
+    # added after the first raw insertion.
+    layout = widget._content_native.layout()
+    titles = []
+    for i in range(layout.count()):
+        wdg = layout.itemAt(i).widget()
+        toggle = getattr(wdg, "toggleButton", None)
+        titles.append(toggle().text() if toggle else type(wdg).__name__)
+
+    assert titles == [
+        "QWidget",
+        "Physical Spacing",
+        "Extraction Layers",
+        "Cleanup",
+        "Advanced Features",
+        "Output Settings",
+        "Output Directory",
+        "Configuration",
+        "QPushButton",
+    ]
+    assert isinstance(layout.itemAt(layout.count() - 1).widget(), QPushButton)
+
+
+def test_image_selector_label_preserved(widget):
+    from qtpy.QtWidgets import QLabel
+
+    labels = [lbl.text() for lbl in widget._content_native.findChildren(QLabel)]
+    assert "Input segmentation (labels layer)" in labels
+
+
+def test_show_preprocessed_ordered_before_prune_spurs(widget):
+    names = [w.name for w in widget._extraction_gui]
+    assert names.index("show_preprocessed") < names.index("prune_spurs")
+
+
+def test_prune_spurs_toggle_still_enables_dependents(widget):
+    """Reordering must not have disturbed the .changed.connect wiring."""
+    assert widget.min_spur_length_widget.enabled is False
+    assert widget.spur_iterations_widget.enabled is False
+
+    widget.prune_spurs_widget.value = True
+    assert widget.min_spur_length_widget.enabled is True
+    assert widget.spur_iterations_widget.enabled is True
+
+    widget.prune_spurs_widget.value = False
+    assert widget.min_spur_length_widget.enabled is False
+    assert widget.spur_iterations_widget.enabled is False
+
+
+def test_fill_holes_toggle_still_enables_show_preprocessed(widget):
+    assert widget.show_preprocessed_widget.enabled is False
+
+    widget.fill_holes_widget.value = True
+    assert widget.show_preprocessed_widget.enabled is True
+
+    widget.fill_holes_widget.value = False
+    assert widget.show_preprocessed_widget.enabled is False
+
+
+# -- spacing field ----------------------------------------------------------
 
 
 def test_spacing_field_defaults_to_empty_string(widget):
