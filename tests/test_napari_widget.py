@@ -125,9 +125,14 @@ def test_image_selector_label_preserved(widget):
     assert "Input segmentation (labels layer)" in labels
 
 
-def test_show_preprocessed_ordered_before_prune_spurs(widget):
+def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widget):
     names = [w.name for w in widget._extraction_gui]
     assert names.index("show_preprocessed") < names.index("prune_spurs")
+    assert names.index("show_preprocessed") < names.index("junction_cleanup")
+
+
+def test_show_preprocessed_label(widget):
+    assert widget.show_preprocessed_widget.label == "Show preprocessed mask"
 
 
 def test_prune_spurs_toggle_still_enables_dependents(widget):
@@ -152,6 +157,47 @@ def test_fill_holes_toggle_still_enables_show_preprocessed(widget):
 
     widget.fill_holes_widget.value = False
     assert widget.show_preprocessed_widget.enabled is False
+
+
+# -- output directory warning ------------------------------------------------
+
+
+def test_output_dir_warning_visible_by_default(widget):
+    # write_skeleton_npy and write_summary_csv default to True, and no
+    # output directory is selected yet.
+    assert widget.output_dir_warning.visible is True
+
+
+def test_output_dir_warning_hidden_when_no_write_option_active(widget):
+    for w in widget._write_option_widgets:
+        w.value = False
+    assert widget.output_dir_warning.visible is False
+
+
+def test_output_dir_warning_hidden_once_output_dir_selected(widget):
+    assert widget.output_dir_warning.visible is True
+    widget._output_dir = "/tmp/fake"
+    widget._update_output_dir_warning()
+    assert widget.output_dir_warning.visible is False
+
+
+def test_output_dir_warning_reappears_if_output_dir_cleared(widget):
+    widget._output_dir = "/tmp/fake"
+    widget._update_output_dir_warning()
+    assert widget.output_dir_warning.visible is False
+
+    widget._output_dir = None
+    widget._update_output_dir_warning()
+    assert widget.output_dir_warning.visible is True
+
+
+def test_output_dir_warning_reacts_to_any_single_write_option(widget):
+    for w in widget._write_option_widgets:
+        w.value = False
+    assert widget.output_dir_warning.visible is False
+
+    widget.write_graphml_widget.value = True
+    assert widget.output_dir_warning.visible is True
 
 
 # -- spacing field ----------------------------------------------------------

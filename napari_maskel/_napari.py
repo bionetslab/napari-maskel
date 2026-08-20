@@ -86,9 +86,9 @@ class MaskAnalysisWidget(Container):
             extract_summary: bool = True,
             include_fractal: bool = False,
             include_mask_radius: bool = False,
+            show_preprocessed: bool = False,
             junction_cleanup: bool = False,
             cleanup_threshold_factor: float = 2.5,
-            show_preprocessed: bool = False,
             prune_spurs: bool = False,
             min_spur_length: float = 10.0,
             spur_iterations: int = 1,
@@ -125,6 +125,7 @@ class MaskAnalysisWidget(Container):
                 "value": False,
                 "label": "Radius features",
             },
+            show_preprocessed={"annotation": bool, "value": False},
             junction_cleanup={"annotation": bool, "value": False},
             cleanup_threshold_factor={
                 "annotation": float,
@@ -134,7 +135,6 @@ class MaskAnalysisWidget(Container):
                 "max": 10.0,
                 "step": 0.1,
             },
-            show_preprocessed={"annotation": bool, "value": False},
             prune_spurs={"annotation": bool, "value": False},
             min_spur_length={
                 "annotation": float,
@@ -302,6 +302,18 @@ class MaskAnalysisWidget(Container):
         self.closing_iterations_widget = extraction_gui.closing_iterations
         self.closing_iterations_widget.label = "Closing iterations"
 
+        self.show_preprocessed_widget = extraction_gui.show_preprocessed
+        self.show_preprocessed_widget.label = "Show preprocessed mask"
+        self.show_preprocessed_widget.enabled = False
+
+        def _update_preprocessed_enabled(*args) -> None:
+            self.show_preprocessed_widget.enabled = (
+                self.fill_holes_widget.value or self.closing_iterations_widget.value > 0
+            )
+
+        self.fill_holes_widget.changed.connect(_update_preprocessed_enabled)
+        self.closing_iterations_widget.changed.connect(_update_preprocessed_enabled)
+
         self.junction_cleanup_widget = extraction_gui.junction_cleanup
         self.junction_cleanup_widget.label = "Collapse triangle junction artifacts"
 
@@ -331,24 +343,12 @@ class MaskAnalysisWidget(Container):
 
         self.prune_spurs_widget.changed.connect(_on_prune_spurs_toggle)
 
-        self.show_preprocessed_widget = extraction_gui.show_preprocessed
-        self.show_preprocessed_widget.label = "Show preprocessed binary layer"
-        self.show_preprocessed_widget.enabled = False
-
-        def _update_preprocessed_enabled(*args) -> None:
-            self.show_preprocessed_widget.enabled = (
-                self.fill_holes_widget.value or self.closing_iterations_widget.value > 0
-            )
-
-        self.fill_holes_widget.changed.connect(_update_preprocessed_enabled)
-        self.closing_iterations_widget.changed.connect(_update_preprocessed_enabled)
-
         cleanup_group.append(self.fill_holes_widget)
         cleanup_group.append(self.max_hole_size_widget)
         cleanup_group.append(self.closing_iterations_widget)
+        cleanup_group.append(self.show_preprocessed_widget)
         cleanup_group.append(self.junction_cleanup_widget)
         cleanup_group.append(self.cleanup_threshold_widget)
-        cleanup_group.append(self.show_preprocessed_widget)
         cleanup_group.append(self.prune_spurs_widget)
         cleanup_group.append(self.min_spur_length_widget)
         cleanup_group.append(self.spur_iterations_widget)
@@ -440,6 +440,23 @@ class MaskAnalysisWidget(Container):
         self.write_graphml_widget = output_gui.write_graphml
         self.write_graphml_widget.label = "Write graph (.graphml)"
 
+        self._write_option_widgets = (
+            self.write_skeleton_npy_widget,
+            self.write_skeleton_png_widget,
+            self.write_summary_csv_widget,
+            self.write_branch_csv_widget,
+            self.write_node_csv_widget,
+            self.write_radius_widget,
+            self.write_graphml_widget,
+        )
+
+        self.output_dir_warning = Label(value="⚠️ Please select output directory")
+        self.output_dir_warning.visible = False
+
+        for w in self._write_option_widgets:
+            w.changed.connect(self._update_output_dir_warning)
+        self._update_output_dir_warning()
+
         output_group.append(self.write_skeleton_npy_widget)
         output_group.append(self.write_skeleton_png_widget)
         output_group.append(self.write_skeleton_png_warning)
@@ -448,6 +465,7 @@ class MaskAnalysisWidget(Container):
         output_group.append(self.write_node_csv_widget)
         output_group.append(self.write_radius_widget)
         output_group.append(self.write_graphml_widget)
+        output_group.append(self.output_dir_warning)
 
         # ============================================================
         # Output Directory
@@ -667,6 +685,16 @@ class MaskAnalysisWidget(Container):
         if dir_path:
             self._output_dir = Path(dir_path)
             self.select_outdir_btn.text = str(self._output_dir)
+            self._update_output_dir_warning()
+
+    def _update_output_dir_warning(self, *args) -> None:
+        """Show a warning when any write option is on but no output
+        directory is selected yet - results would otherwise never be
+        saved. ``self._output_dir`` is a plain attribute (not a magicgui
+        widget), so it has no ``.changed`` signal of its own; this is
+        called directly from ``_on_select_output_dir`` instead."""
+        any_write_active = any(w.value for w in self._write_option_widgets)
+        self.output_dir_warning.visible = any_write_active and self._output_dir is None
 
     def _recolor_branch_layers(self, *args) -> None:
         """Recolor existing branch layers without re-running analysis."""
