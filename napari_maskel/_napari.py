@@ -14,6 +14,7 @@ from maskel.pipeline import analyze_segmentation_mask
 from napari.layers import Layer, Shapes
 from napari.utils.notifications import show_error, show_info
 from qtpy.QtWidgets import QFileDialog
+from superqt import QCollapsible
 
 from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
 
@@ -51,10 +52,27 @@ class MaskAnalysisWidget(Container):
     _CONFIG_FILTER = "JSON Files (*.json);;All Files (*)"
 
     def __init__(self, napari_viewer):
-        super().__init__()
+        super().__init__(scrollable=True)
+        # napari's add_dock_widget always embeds `widget.native` verbatim,
+        # but magicgui's own `.native` deliberately returns the *unwrapped*
+        # content widget when scrollable=True ("this is the widget that
+        # contains the layout, and not any parent widget ... used to enable
+        # scroll bars" - see magicgui's own docstring). Without this
+        # override, napari would silently discard the scroll-area wrapper
+        # and vertical scrolling would never actually take effect once
+        # docked. `.root_native_widget` is the wrapper; keep a handle to
+        # the real content widget (the one with the actual child layout)
+        # for our own use below, since our own `native` override shadows it.
+        self._content_native = super().native
         self.viewer = napari_viewer
         self._output_dir: Path | None = None
         self._setup_ui()
+
+    @property
+    def native(self):
+        """The widget napari should dock - the scroll-area wrapper, not the
+        bare content widget (see the comment in ``__init__``)."""
+        return self.root_native_widget
 
     def _setup_ui(self):
         # ---------- extraction parameters (magicgui) ----------
@@ -70,13 +88,13 @@ class MaskAnalysisWidget(Container):
             include_mask_radius: bool = False,
             junction_cleanup: bool = False,
             cleanup_threshold_factor: float = 2.5,
+            show_preprocessed: bool = False,
             prune_spurs: bool = False,
             min_spur_length: float = 10.0,
             spur_iterations: int = 1,
             fill_holes: bool = False,
             closing_iterations: int = 0,
             max_hole_size: int = 0,
-            show_preprocessed: bool = False,
         ) -> None:
             return None
 
@@ -116,6 +134,7 @@ class MaskAnalysisWidget(Container):
                 "max": 10.0,
                 "step": 0.1,
             },
+            show_preprocessed={"annotation": bool, "value": False},
             prune_spurs={"annotation": bool, "value": False},
             min_spur_length={
                 "annotation": float,
@@ -150,7 +169,6 @@ class MaskAnalysisWidget(Container):
                 "max": 100000,
                 "step": 100,
             },
-            show_preprocessed={"annotation": bool, "value": False},
         )
 
         # ---------- output parameters (magicgui) ----------
@@ -175,7 +193,6 @@ class MaskAnalysisWidget(Container):
         # Physical Spacing
         # ============================================================
         spacing_group = Container()
-        spacing_group.label = "Physical Spacing"
 
         self.spacing_widget = extraction_gui.spacing
 
@@ -216,7 +233,6 @@ class MaskAnalysisWidget(Container):
         # Extraction Layers
         # ============================================================
         extraction_group = Container()
-        extraction_group.label = "Extraction Layers"
 
         self.extract_branches_widget = extraction_gui.extract_branches
         self.extract_branches_widget.label = "Extract branches"
@@ -270,7 +286,6 @@ class MaskAnalysisWidget(Container):
         # Cleanup
         # ============================================================
         cleanup_group = Container()
-        cleanup_group.label = "Cleanup"
 
         self.fill_holes_widget = extraction_gui.fill_holes
         self.fill_holes_widget.label = "Fill holes in segmentation"
@@ -333,16 +348,15 @@ class MaskAnalysisWidget(Container):
         cleanup_group.append(self.closing_iterations_widget)
         cleanup_group.append(self.junction_cleanup_widget)
         cleanup_group.append(self.cleanup_threshold_widget)
+        cleanup_group.append(self.show_preprocessed_widget)
         cleanup_group.append(self.prune_spurs_widget)
         cleanup_group.append(self.min_spur_length_widget)
         cleanup_group.append(self.spur_iterations_widget)
-        cleanup_group.append(self.show_preprocessed_widget)
 
         # ============================================================
         # Advanced Features
         # ============================================================
         advanced_group = Container()
-        advanced_group.label = "Advanced Features"
 
         self.include_fractal_widget = extraction_gui.include_fractal
 
@@ -358,7 +372,6 @@ class MaskAnalysisWidget(Container):
         # Output Settings (CLI file export options)
         # ============================================================
         output_group = Container()
-        output_group.label = "Output Settings"
 
         self.write_skeleton_npy_widget = output_gui.write_skeleton_npy
         self.write_skeleton_npy_widget.label = "Write skeleton (.npy)"
@@ -440,7 +453,6 @@ class MaskAnalysisWidget(Container):
         # Output Directory
         # ============================================================
         outdir_group = Container()
-        outdir_group.label = "Output Directory"
 
         self.select_outdir_btn = PushButton(text="Select Output Directory...")
         self.select_outdir_btn.clicked.connect(self._on_select_output_dir)
@@ -451,7 +463,6 @@ class MaskAnalysisWidget(Container):
         # Configuration Management
         # ============================================================
         config_group = Container()
-        config_group.label = "Configuration"
 
         self.load_btn = PushButton(text="Load Config")
         self.load_btn.clicked.connect(self._on_load_config)
@@ -471,15 +482,64 @@ class MaskAnalysisWidget(Container):
         # ============================================================
         # Assemble widget
         # ============================================================
+        # self.append() inserts at a position computed from magicgui's own
+        # internal widget count, and QCollapsible is a raw Qt widget outside
+        # that bookkeeping - mixing the two desyncs the count and silently
+        # reorders every later self.append() call. self.image_widget is the
+        # sole exception: it's the very first widget added, so self.append()
+        # here is safe (there's nothing before it to desync against) and it
+        # preserves the "Input segmentation (labels layer)" label, which
+        # self.append() renders by wrapping non-button widgets in an
+        # internal _LabeledWidget - something a raw .native insert would
+        # silently drop. Everything after it (each group, wrapped in its own
+        # collapsible and expanded by default, plus the final Analyze
+        # button) goes straight into the content widget's real Qt layout.
         self.append(self.image_widget)
-        self.append(spacing_group)
-        self.append(extraction_group)
-        self.append(cleanup_group)
-        self.append(advanced_group)
-        self.append(output_group)
-        self.append(outdir_group)
-        self.append(config_group)
-        self.append(self.analyze_btn)
+        content_layout = self._content_native.layout()
+
+        self._spacing_collapsible = self._make_collapsible(
+            spacing_group, "Physical Spacing"
+        )
+        self._extraction_collapsible = self._make_collapsible(
+            extraction_group, "Extraction Layers"
+        )
+        self._cleanup_collapsible = self._make_collapsible(cleanup_group, "Cleanup")
+        self._advanced_collapsible = self._make_collapsible(
+            advanced_group, "Advanced Features"
+        )
+        self._output_collapsible = self._make_collapsible(
+            output_group, "Output Settings"
+        )
+        self._outdir_collapsible = self._make_collapsible(
+            outdir_group, "Output Directory"
+        )
+        self._config_collapsible = self._make_collapsible(config_group, "Configuration")
+
+        for collapsible in (
+            self._spacing_collapsible,
+            self._extraction_collapsible,
+            self._cleanup_collapsible,
+            self._advanced_collapsible,
+            self._output_collapsible,
+            self._outdir_collapsible,
+            self._config_collapsible,
+        ):
+            content_layout.addWidget(collapsible)
+
+        content_layout.addWidget(self.analyze_btn.native)
+
+    @staticmethod
+    def _make_collapsible(group: Container, title: str) -> QCollapsible:
+        """Wrap a magicgui ``Container`` in a ``QCollapsible``, expanded by default.
+
+        The group's own reactive wiring (``.enabled``/``.value`` toggling on its
+        child widgets) is untouched - it operates on the widgets directly and
+        doesn't depend on where the group ends up in the Qt widget tree.
+        """
+        collapsible = QCollapsible(title=title)
+        collapsible.addWidget(group.native)
+        collapsible.expand(animate=False)
+        return collapsible
 
     # ------------------------------------------------------------------
     # Config get / set (full PipelineConfig)

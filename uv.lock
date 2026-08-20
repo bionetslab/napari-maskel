@@ -2268,7 +2268,9 @@ dependencies = [
     { name = "napari-assistant" },
     { name = "napari-simpleitk-image-processing" },
     { name = "napari-skimage" },
+    { name = "pandas" },
     { name = "pyyaml" },
+    { name = "superqt" },
 ]
 
 [package.optional-dependencies]
@@ -2283,8 +2285,10 @@ requires-dist = [
     { name = "napari-assistant", specifier = ">=0.6.0" },
     { name = "napari-simpleitk-image-processing", specifier = ">=0.4.9" },
     { name = "napari-skimage", specifier = ">=0.6.0" },
+    { name = "pandas" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "superqt" },
 ]
 provides-extras = ["dev"]
 
