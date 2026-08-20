@@ -319,6 +319,21 @@ class MaskAnalysisWidget(Container):
         self.write_skeleton_png_widget = output_gui.write_skeleton_png
         self.write_skeleton_png_widget.label = "Write skeleton (.png)"
 
+        self.write_skeleton_png_warning = Label(
+            value="⚠️ 3D image selected: PNG export will be skipped"
+        )
+        self.write_skeleton_png_warning.visible = False
+
+        def _update_skeleton_png_warning(*args) -> None:
+            img = self.image_widget.value
+            is_3d = img is not None and img.data.ndim == 3
+            self.write_skeleton_png_warning.visible = (
+                self.write_skeleton_png_widget.value and is_3d
+            )
+
+        self.write_skeleton_png_widget.changed.connect(_update_skeleton_png_warning)
+        self.image_widget.changed.connect(_update_skeleton_png_warning)
+
         self.write_summary_csv_widget = output_gui.write_summary_csv
         self.write_summary_csv_widget.label = "Write summary CSV"
 
@@ -367,6 +382,7 @@ class MaskAnalysisWidget(Container):
 
         output_group.append(self.write_skeleton_npy_widget)
         output_group.append(self.write_skeleton_png_widget)
+        output_group.append(self.write_skeleton_png_warning)
         output_group.append(self.write_summary_csv_widget)
         output_group.append(self.write_branch_csv_widget)
         output_group.append(self.write_node_csv_widget)
