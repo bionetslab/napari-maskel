@@ -5,13 +5,13 @@ categories:
 - Image Processing
 - Segmentation
 napari: 0.4
-description: Vessel skeletonization and feature extraction for napari
+description: Mask skeletonization and feature extraction for napari
 license: MIT
 contributions:
   commands:
-  - id: napari-maskel.analyze_vessels
-    title: Analyze Vessels
-    python_name: napari_maskel._napari:VesselAnalysisWidget
+  - id: napari-maskel.analyze_mask
+    title: Analyze Mask
+    python_name: napari_maskel._napari:MaskAnalysisWidget
   widgets:
-  - command: napari-maskel.analyze_vessels
-    display_name: Analyze Vessels
+  - command: napari-maskel.analyze_mask
+    display_name: Analyze Mask

@@ -1,4 +1,4 @@
-"""Napari widget for vessel analysis."""
+"""Napari widget for mask analysis."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import numpy as np
 from magicgui import magicgui
 from magicgui.widgets import Container, Label, PushButton
 from maskel._io import save_analysis_outputs
-from maskel.pipeline import analyze_binary_image
+from maskel.pipeline import analyze_segmentation_mask
 from napari.layers import Layer, Shapes
 from napari.utils.notifications import show_error, show_info
 from qtpy.QtWidgets import QFileDialog
@@ -20,7 +20,7 @@ from napari_maskel.napari_layers import extract_skeleton_layers
 if TYPE_CHECKING:
     # These imports are only used for annotations and are therefore
     # guarded by TYPE_CHECKING to avoid runtime import-time coupling.
-    from napari.layers import Image  # noqa: F401
+    from napari.layers import Labels  # noqa: F401
 
 from maskel.config import (
     COLORABLE_BRANCH_PROPERTIES,
@@ -45,7 +45,7 @@ _RADIUS_REQUIRED_PROPS = {
 }
 
 
-class VesselAnalysisWidget(Container):
+class MaskAnalysisWidget(Container):
     """Analysis configuration widget."""
 
     _CONFIG_FILTER = "JSON Files (*.json);;All Files (*)"
@@ -59,14 +59,14 @@ class VesselAnalysisWidget(Container):
     def _setup_ui(self):
         # ---------- extraction parameters (magicgui) ----------
         def _extraction_params(
-            image: "napari.layers.Image",  # noqa: F821, UP037
+            image: "napari.layers.Labels",  # noqa: F821, UP037
             extract_branches: bool = False,
             branch_color_property: str = "tortuosity",
             extract_branch_text: bool = False,
             extract_nodes: bool = False,
             extract_summary: bool = True,
             include_fractal: bool = False,
-            include_vessel_radius: bool = False,
+            include_mask_radius: bool = False,
             junction_cleanup: bool = False,
             cleanup_threshold_factor: float = 2.5,
             prune_spurs: bool = False,
@@ -81,7 +81,7 @@ class VesselAnalysisWidget(Container):
 
         extraction_gui = magicgui(
             _extraction_params,
-            image={"label": "Input image"},
+            image={"label": "Input segmentation (labels layer)"},
             extract_branches={"annotation": bool, "value": False},
             branch_color_property={
                 "annotation": str,
@@ -96,7 +96,7 @@ class VesselAnalysisWidget(Container):
                 "value": False,
                 "label": "Fractal dimension",
             },
-            include_vessel_radius={
+            include_mask_radius={
                 "annotation": bool,
                 "value": False,
                 "label": "Radius features",
@@ -178,7 +178,7 @@ class VesselAnalysisWidget(Container):
         self.branch_color_widget.label = "Branch color by"
         self.branch_color_widget.enabled = False
 
-        self.branch_color_warning = Label(value="⚠️ Requires Vessel Radius")
+        self.branch_color_warning = Label(value="⚠️ Requires Mask Radius")
         self.branch_color_warning.visible = False
 
         def _on_branches_toggle(enabled: bool | None = None) -> None:
@@ -188,13 +188,13 @@ class VesselAnalysisWidget(Container):
 
         def _update_branch_color_warning(*args) -> None:
             needs_radius = self.branch_color_widget.value in _RADIUS_REQUIRED_PROPS
-            radius_off = not self.include_vessel_radius_widget.value
+            radius_off = not self.include_mask_radius_widget.value
             self.branch_color_warning.visible = needs_radius and radius_off
 
         self.branch_color_widget.changed.connect(_update_branch_color_warning)
         self.branch_color_widget.changed.connect(self._recolor_branch_layers)
 
-        # connection to include_vessel_radius_widget happens below
+        # connection to include_mask_radius_widget happens below
         # after that widget is created
 
         self.extract_branch_text_widget = extraction_gui.extract_branch_text
@@ -301,11 +301,11 @@ class VesselAnalysisWidget(Container):
 
         advanced_group.append(self.include_fractal_widget)
 
-        self.include_vessel_radius_widget = extraction_gui.include_vessel_radius
+        self.include_mask_radius_widget = extraction_gui.include_mask_radius
 
-        self.include_vessel_radius_widget.changed.connect(_update_branch_color_warning)
+        self.include_mask_radius_widget.changed.connect(_update_branch_color_warning)
 
-        advanced_group.append(self.include_vessel_radius_widget)
+        advanced_group.append(self.include_mask_radius_widget)
 
         # ============================================================
         # Output Settings (CLI file export options)
@@ -324,13 +324,13 @@ class VesselAnalysisWidget(Container):
 
         self.write_radius_widget = output_gui.write_radius
         self.write_radius_widget.label = "Write radius matrix (.npy)"
-        self.write_radius_widget.enabled = self.include_vessel_radius_widget.value
+        self.write_radius_widget.enabled = self.include_mask_radius_widget.value
 
-        def _on_vessel_radius_toggle_write_radius(*args) -> None:
-            self.write_radius_widget.enabled = self.include_vessel_radius_widget.value
+        def _on_mask_radius_toggle_write_radius(*args) -> None:
+            self.write_radius_widget.enabled = self.include_mask_radius_widget.value
 
-        self.include_vessel_radius_widget.changed.connect(
-            _on_vessel_radius_toggle_write_radius
+        self.include_mask_radius_widget.changed.connect(
+            _on_mask_radius_toggle_write_radius
         )
 
         self.write_summary_csv_widget.enabled = self.extract_summary_widget.value
@@ -402,7 +402,7 @@ class VesselAnalysisWidget(Container):
         # ============================================================
         # Analyze Button
         # ============================================================
-        self.analyze_btn = PushButton(text="Analyze Vessels")
+        self.analyze_btn = PushButton(text="Analyze Mask")
         self.analyze_btn.clicked.connect(self._on_analyze)
 
         # ============================================================
@@ -431,7 +431,7 @@ class VesselAnalysisWidget(Container):
                 nodes=self.extract_nodes_widget.value,
                 summary=self.extract_summary_widget.value,
                 fractal_dimension=self.include_fractal_widget.value,
-                vessel_radius=self.include_vessel_radius_widget.value,
+                mask_radius=self.include_mask_radius_widget.value,
                 junction_cleanup=junction_cleanup,
                 cleanup_threshold_factor=self.cleanup_threshold_widget.value,
                 prune_spurs=self.prune_spurs_widget.value,
@@ -461,7 +461,7 @@ class VesselAnalysisWidget(Container):
         self.extract_nodes_widget.value = e.nodes
         self.extract_summary_widget.value = e.summary
         self.include_fractal_widget.value = e.fractal_dimension
-        self.include_vessel_radius_widget.value = e.vessel_radius
+        self.include_mask_radius_widget.value = e.mask_radius
         self.junction_cleanup_widget.value = e.junction_cleanup
         self.cleanup_threshold_widget.value = e.cleanup_threshold_factor
         self.prune_spurs_widget.value = e.prune_spurs
@@ -560,21 +560,12 @@ class VesselAnalysisWidget(Container):
         try:
             t0 = time.perf_counter()
             pipeline_config = self._get_current_pipeline_config()
-            result = analyze_binary_image(image=img.data, config=pipeline_config)
+            result = analyze_segmentation_mask(mask=img.data, config=pipeline_config)
             elapsed = time.perf_counter() - t0
 
             n_fg = int((img.data > 0).sum())
             n_skel = int(result.skeleton.sum())
             show_info(f"Analysis: {n_fg} → {n_skel} skeleton pixels in {elapsed:.3f}s")
-
-            # Always add skeleton layer first.
-            self.viewer.add_layer(
-                Layer.create(
-                    result.skeleton,
-                    {"name": f"{img.name}_skeleton"},
-                    "labels",
-                )
-            )
 
             # -- optional: show preprocessed binary layer ----------------
             if (
@@ -589,26 +580,17 @@ class VesselAnalysisWidget(Container):
                     )
                 )
 
-            if result.graph is not None and result.branch_data is not None:
-                layers = extract_skeleton_layers(
-                    result.skeleton,
-                    img.name,
-                    graph=result.graph,
-                    branch_data=result.branch_data,
-                    config=pipeline_config.extraction,
-                    features=result.summary_features
-                    if pipeline_config.extraction.summary
-                    else None,
-                    radius_matrix=result.radius_matrix,
-                )
-                for data, meta, layer_type in layers:
-                    try:
-                        layer = Layer.create(data, meta, layer_type)
-                        self.viewer.add_layer(layer)
-                    except Exception as e:  # noqa: BLE001
-                        show_info(
-                            f"Failed to add layer {meta.get('name', '<unnamed>')}: {e}"
-                        )
+            layers = extract_skeleton_layers(
+                result, img.name, config=pipeline_config.extraction
+            )
+            for data, meta, layer_type in layers:
+                try:
+                    layer = Layer.create(data, meta, layer_type)
+                    self.viewer.add_layer(layer)
+                except Exception as e:  # noqa: BLE001
+                    show_info(
+                        f"Failed to add layer {meta.get('name', '<unnamed>')}: {e}"
+                    )
 
             # -- save results to disk if output directory is set ----------
             if self._output_dir is not None:
