@@ -1,8 +1,10 @@
 [project]
 name = "napari-maskel"
 license = "MIT"
-version = "0.1.0"
-description = "napari plugin for maskel: mask skeletonization and feature extraction"
+
+version = "0.1.1"
+description = "napari plugin for maskel: vessel skeletonization and feature extraction"
+
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -12,6 +14,7 @@ dependencies = [
     "napari-assistant>=0.6.0",
     "napari-simpleitk-image-processing>=0.4.9",
     "napari-skimage>=0.6.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.urls]
