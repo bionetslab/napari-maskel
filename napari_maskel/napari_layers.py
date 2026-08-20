@@ -11,6 +11,56 @@ if TYPE_CHECKING:
     from napari.types import LayerDataTuple  # noqa: F401
 
 
+def parse_spacing_input(
+    text: str, ndim: int
+) -> tuple[tuple[float, ...] | None, str | None]:
+    """Parse a comma-separated spacing string, validating its length against *ndim*.
+
+    A standalone, pure function (no Qt/napari dependency) so it's
+    unit-testable without a real napari viewer - the widget calls this both
+    to validate on change and to build the `ExtractionConfig` at analyze
+    time, showing an inline warning label instead of the CLI's stderr
+    warning when the input is invalid.
+
+    Parameters
+    ----------
+    text : str
+        Comma-separated spacing values, e.g. ``"1.0, 0.5, 0.5"``. Napari
+        layers always have a ``.scale`` of length ``ndim`` (defaulting to
+        all ``1.0``), which is the natural source for the field's initial
+        value; this function just parses/validates whatever the user has
+        typed there.
+    ndim : int
+        Expected number of axes (the selected image layer's dimensionality).
+
+    Returns
+    -------
+    spacing : tuple[float, ...] or None
+        The parsed spacing, or ``None`` if *text* is blank/whitespace-only
+        (treated as "no override" - valid, matching the CLI/pipeline's own
+        None-means-isotropic default) or invalid.
+    error : str or None
+        A human-readable message when *text* is invalid (unparsable, or the
+        wrong number of values for *ndim*), else ``None``.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return None, None
+
+    parts = [p.strip() for p in stripped.split(",")]
+    try:
+        values = tuple(float(p) for p in parts)
+    except ValueError:
+        return None, f"Spacing must be comma-separated numbers, got '{text}'"
+
+    if len(values) != ndim:
+        return None, (
+            f"Spacing has {len(values)} value(s) but the image has {ndim} dimension(s)"
+        )
+
+    return values, None
+
+
 def extract_skeleton_layers(
     result: AnalysisResult,
     base_name: str,
