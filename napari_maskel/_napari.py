@@ -15,7 +15,7 @@ from napari.layers import Layer, Shapes
 from napari.utils.notifications import show_error, show_info
 from qtpy.QtWidgets import QFileDialog
 
-from napari_maskel.napari_layers import extract_skeleton_layers
+from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
 
 if TYPE_CHECKING:
     # These imports are only used for annotations and are therefore
@@ -60,6 +60,7 @@ class MaskAnalysisWidget(Container):
         # ---------- extraction parameters (magicgui) ----------
         def _extraction_params(
             image: "napari.layers.Labels",  # noqa: F821, UP037
+            spacing: str = "",
             extract_branches: bool = False,
             branch_color_property: str = "tortuosity",
             extract_branch_text: bool = False,
@@ -82,6 +83,11 @@ class MaskAnalysisWidget(Container):
         extraction_gui = magicgui(
             _extraction_params,
             image={"label": "Input segmentation (labels layer)"},
+            spacing={
+                "annotation": str,
+                "value": "",
+                "label": "Spacing (comma-separated, e.g. 1.0,1.0)",
+            },
             extract_branches={"annotation": bool, "value": False},
             branch_color_property={
                 "annotation": str,
@@ -164,6 +170,47 @@ class MaskAnalysisWidget(Container):
         self._extraction_gui = extraction_gui
         self._output_gui = output_gui
         self.image_widget = extraction_gui.image
+
+        # ============================================================
+        # Physical Spacing
+        # ============================================================
+        spacing_group = Container()
+        spacing_group.label = "Physical Spacing"
+
+        self.spacing_widget = extraction_gui.spacing
+
+        self.spacing_warning = Label(value="")
+        self.spacing_warning.visible = False
+
+        def _default_spacing_from_layer(*args) -> None:
+            """Napari layers always have a `.scale` of length ndim
+            (defaulting to all 1.0) - the natural default for this field,
+            since napari itself has no convenient numeric field to *set*
+            `.scale` (only an imprecise drag-based Transform tool, or the
+            console)."""
+            img = self.image_widget.value
+            if img is None:
+                return
+            scale = getattr(img, "scale", None)
+            if scale is None:
+                return
+            self.spacing_widget.value = ",".join(f"{s:g}" for s in scale)
+
+        def _update_spacing_warning(*args) -> None:
+            img = self.image_widget.value
+            if img is None:
+                self.spacing_warning.visible = False
+                return
+            _, error = parse_spacing_input(self.spacing_widget.value, img.data.ndim)
+            self.spacing_warning.value = f"⚠️ {error}" if error else ""
+            self.spacing_warning.visible = error is not None
+
+        self.image_widget.changed.connect(_default_spacing_from_layer)
+        self.image_widget.changed.connect(_update_spacing_warning)
+        self.spacing_widget.changed.connect(_update_spacing_warning)
+
+        spacing_group.append(self.spacing_widget)
+        spacing_group.append(self.spacing_warning)
 
         # ============================================================
         # Extraction Layers
@@ -425,6 +472,7 @@ class MaskAnalysisWidget(Container):
         # Assemble widget
         # ============================================================
         self.append(self.image_widget)
+        self.append(spacing_group)
         self.append(extraction_group)
         self.append(cleanup_group)
         self.append(advanced_group)
@@ -436,6 +484,19 @@ class MaskAnalysisWidget(Container):
     # ------------------------------------------------------------------
     # Config get / set (full PipelineConfig)
     # ------------------------------------------------------------------
+
+    def _get_current_spacing(self) -> tuple[float, ...] | None:
+        """Re-parse the spacing field against the currently selected image's
+        dimensionality at read time, rather than trusting cached state -
+        falls back to ``None`` (isotropic) with no image selected or on an
+        invalid value, same "warn/fall back, don't crash" policy as the
+        CLI's ``--spacing``, surfaced here as ``spacing_warning`` instead of
+        a stderr print."""
+        img = self.image_widget.value
+        if img is None:
+            return None
+        spacing, _ = parse_spacing_input(self.spacing_widget.value, img.data.ndim)
+        return spacing
 
     def _get_current_pipeline_config(self) -> PipelineConfig:
         junction_cleanup = self.junction_cleanup_widget.value
@@ -457,6 +518,7 @@ class MaskAnalysisWidget(Container):
                 closing_iterations=self.closing_iterations_widget.value,
                 max_hole_size=self.max_hole_size_widget.value,
                 show_preprocessed=self.show_preprocessed_widget.value,
+                spacing=self._get_current_spacing(),
             ),
             output=OutputConfig(
                 write_skeleton_npy=self.write_skeleton_npy_widget.value,
@@ -471,6 +533,9 @@ class MaskAnalysisWidget(Container):
 
     def _set_pipeline_config(self, config: PipelineConfig) -> None:
         e = config.extraction
+        self.spacing_widget.value = (
+            ",".join(str(s) for s in e.spacing) if e.spacing is not None else ""
+        )
         self.extract_branches_widget.value = e.branches
         self.branch_color_widget.value = e.branch_color_property
         self.extract_branch_text_widget.value = e.branch_text

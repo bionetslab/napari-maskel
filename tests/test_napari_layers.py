@@ -3,7 +3,52 @@ import pytest
 from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
 from maskel.pipeline import analyze_segmentation_mask
 
-from napari_maskel.napari_layers import extract_skeleton_layers
+from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
+
+
+class TestParseSpacingInput:
+    def test_valid_2d(self):
+        spacing, error = parse_spacing_input("1.0,0.5", ndim=2)
+        assert spacing == (1.0, 0.5)
+        assert error is None
+
+    def test_valid_3d(self):
+        spacing, error = parse_spacing_input("1.0,0.5,0.5", ndim=3)
+        assert spacing == (1.0, 0.5, 0.5)
+        assert error is None
+
+    def test_tolerates_extra_whitespace(self):
+        spacing, error = parse_spacing_input(" 1.0 , 2.0 ", ndim=2)
+        assert spacing == (1.0, 2.0)
+        assert error is None
+
+    def test_blank_string_is_valid_no_override(self):
+        spacing, error = parse_spacing_input("", ndim=2)
+        assert spacing is None
+        assert error is None
+
+    def test_whitespace_only_string_is_valid_no_override(self):
+        spacing, error = parse_spacing_input("   ", ndim=3)
+        assert spacing is None
+        assert error is None
+
+    def test_wrong_length_is_invalid(self):
+        spacing, error = parse_spacing_input("1.0,1.0", ndim=3)
+        assert spacing is None
+        assert error is not None
+        assert "2" in error
+        assert "3" in error
+
+    def test_unparsable_text_is_invalid(self):
+        spacing, error = parse_spacing_input("abc,def", ndim=2)
+        assert spacing is None
+        assert error is not None
+        assert "comma-separated numbers" in error
+
+    def test_partial_garbage_is_invalid(self):
+        spacing, error = parse_spacing_input("1.0,abc", ndim=2)
+        assert spacing is None
+        assert error is not None
 
 
 def _cross_mask(size: int = 32) -> np.ndarray:

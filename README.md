@@ -21,6 +21,8 @@ Open a segmentation mask (2D or 3D) as a **labels layer**, then run **Analyze Ma
 
 Inside the widget, tune extraction settings and use **Save Config** to export a reusable JSON preset — the same preset the [maskel CLI](https://github.com/bionetslab/maskel) consumes for batch processing (`maskel run --config`).
 
+The **Spacing** field lets you set the physical pixel/voxel size (comma-separated, one value per axis) so length/radius/area features come out in physical units instead of pixel units. It's pre-filled from the selected layer's own `.scale` when you pick an image (napari has no convenient numeric field of its own to edit `.scale`, only an imprecise drag-based Transform tool or the console — this field is the convenient alternative), and you can edit it directly. An invalid value (wrong number of axes for the image, or unparsable text) shows an inline warning and falls back to pixel units for that analysis rather than failing.
+
 ## Tests
 
 ```sh
