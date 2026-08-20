@@ -1,6 +1,6 @@
 name: napari-maskel
 display_name: Maskel
-version: 0.1.1
+version: 1.0.0
 categories:
 - Image Processing
 - Segmentation
