@@ -1901,7 +1901,7 @@ wheels = [
 
 [[package]]
 name = "maskel"
-version = "0.1.1"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -1914,9 +1914,9 @@ dependencies = [
     { name = "scipy" },
     { name = "skan" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/57/50/5fb2e3e2643dbed731b5e7f7cd870a202338b72141cb106f26283637a7d6/maskel-0.1.1.tar.gz", hash = "sha256:70bbaf57c3a07bbf16ccea62caf4d7783ecafe75d6fb7250c0bdb7efa2520a61", size = 43946, upload-time = "2026-08-19T11:56:21.448Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/02/844ac041ea9daa86f9b4ada5a6a438b2860f56e8810db53150122ae3ad64/maskel-1.0.0.tar.gz", hash = "sha256:36f0d4cec77275cf4904514e5eae066c6f6872e82e3b6b94673cde96d35db3f5", size = 55453, upload-time = "2026-08-20T12:47:40.479Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/61/7987feb09848c24a6ae09720127a1cf0b4ebf9428c3e236dbd56b084bd61/maskel-0.1.1-py3-none-any.whl", hash = "sha256:b73e85b2b4649e628e9f419ecf8b6badc0e78231ef72fda2afe05d93ee5e7739", size = 33027, upload-time = "2026-08-19T11:56:20.289Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/3b/a836ed5fdd71a391af0add05a7bbe82c2aaeffbea0cc03d6bf58ea60e7b3/maskel-1.0.0-py3-none-any.whl", hash = "sha256:de16e7e8c6862e524c870064629d1aaa760f62c5e51ad6978993f5b66dd06477", size = 39588, upload-time = "2026-08-20T12:47:39.415Z" },
 ]
 
 [[package]]
@@ -2280,7 +2280,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "maskel", specifier = ">=0.1.0,<0.2.0" },
+    { name = "maskel", specifier = ">=1.0.0,<2.0.0" },
     { name = "napari", extras = ["all"] },
     { name = "napari-assistant", specifier = ">=0.6.0" },
     { name = "napari-simpleitk-image-processing", specifier = ">=0.4.9" },
