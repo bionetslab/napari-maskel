@@ -431,7 +431,7 @@ class MaskAnalysisWidget(Container):
                 nodes=self.extract_nodes_widget.value,
                 summary=self.extract_summary_widget.value,
                 fractal_dimension=self.include_fractal_widget.value,
-                vessel_radius=self.include_mask_radius_widget.value,
+                mask_radius=self.include_mask_radius_widget.value,
                 junction_cleanup=junction_cleanup,
                 cleanup_threshold_factor=self.cleanup_threshold_widget.value,
                 prune_spurs=self.prune_spurs_widget.value,
@@ -461,7 +461,7 @@ class MaskAnalysisWidget(Container):
         self.extract_nodes_widget.value = e.nodes
         self.extract_summary_widget.value = e.summary
         self.include_fractal_widget.value = e.fractal_dimension
-        self.include_mask_radius_widget.value = e.vessel_radius
+        self.include_mask_radius_widget.value = e.mask_radius
         self.junction_cleanup_widget.value = e.junction_cleanup
         self.cleanup_threshold_widget.value = e.cleanup_threshold_factor
         self.prune_spurs_widget.value = e.prune_spurs

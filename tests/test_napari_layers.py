@@ -105,11 +105,11 @@ class TestExtractSkeletonLayers:
         assert "properties" in summary_layer[0][1]
 
     def test_with_radius_matrix(self):
-        result = _analyze(_cross_mask(), summary=True, vessel_radius=True)
+        result = _analyze(_cross_mask(), summary=True, mask_radius=True)
         layers = extract_skeleton_layers(
             result,
             "test",
-            config=ExtractionConfig(summary=True, vessel_radius=True),
+            config=ExtractionConfig(summary=True, mask_radius=True),
         )
         assert "image" in [layer[2] for layer in layers]
 
