@@ -33,10 +33,27 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
 
+      - name: Install Qt runtime libraries
+        # PyQt6 dynamically links against these at import time, even under
+        # the offscreen QPA platform used by tests/test_napari_widget.py and
+        # tests/test_skeleton_png_warning.py - ubuntu-latest runners don't
+        # have them by default, so `import qtpy.QtWidgets` fails at
+        # collection time with "libEGL.so.1: cannot open shared object file"
+        # before QT_QPA_PLATFORM is ever consulted.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 \
+            libx11-xcb1 libdbus-1-3
+
       - name: Install dependencies
         run: uv sync --extra dev
 
       - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: uv run pytest tests
 
       - name: Bump version in pyproject.toml and napari.yaml
