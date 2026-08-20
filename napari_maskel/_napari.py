@@ -723,7 +723,7 @@ class MaskAnalysisWidget(Container):
         """Execute analysis with current settings."""
         img = self.image_widget.value
         if img is None:
-            show_info("Please select an image layer")
+            show_info("Please select a label layer")
             return
 
         try:
