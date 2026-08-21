@@ -107,12 +107,12 @@ def test_group_order_matches_original_layout(widget):
 
     assert titles == [
         "QWidget",
-        "Physical Spacing",
-        "Extraction Layers",
+        "Physical spacing",
+        "Extraction layers",
         "Cleanup",
-        "Advanced Features",
-        "Output Settings",
-        "Configuration",
+        "Advanced features",
+        "Output settings",
+        "Recipe",
         "QPushButton",
     ]
     assert isinstance(layout.itemAt(layout.count() - 1).widget(), QPushButton)
@@ -133,6 +133,15 @@ def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widge
 
 def test_show_preprocessed_label(widget):
     assert widget.show_preprocessed_widget.label == "Show preprocessed mask"
+
+
+def test_relabeled_widgets(widget):
+    assert widget.fill_holes_widget.label == "Fill holes in mask"
+    assert widget.junction_cleanup_widget.label == "Skeleton junction cleanup"
+    assert widget.prune_spurs_widget.label == "Prune skeleton spurs"
+    assert widget.load_btn.text == "Load recipe"
+    assert widget.save_btn.text == "Save recipe"
+    assert widget.analyze_btn.text == "Analyze mask"
 
 
 def test_prune_spurs_toggle_still_enables_dependents(widget):
@@ -218,9 +227,9 @@ def test_output_dir_button_lives_in_output_settings_group(widget):
     buttons = [
         b.text()
         for b in output_settings_native.findChildren(QPB)
-        if b.text() == "Select Output Directory..."
+        if b.text() == "Select output directory..."
     ]
-    assert buttons == ["Select Output Directory..."]
+    assert buttons == ["Select output directory..."]
 
 
 def test_selecting_output_dir_preserves_path_after_disable_and_reenable(widget):
@@ -236,6 +245,30 @@ def test_selecting_output_dir_preserves_path_after_disable_and_reenable(widget):
     assert widget.select_outdir_btn.enabled is True
     assert widget._output_dir == "/tmp/fake"
     assert widget.output_dir_warning.visible is False
+
+
+# -- networkx graph export ---------------------------------------------------
+
+
+def test_write_networkx_graph_widget_label(widget):
+    assert widget.write_networkx_graph_widget.label == "Write networkx graph (.pkl)"
+
+
+def test_write_networkx_graph_is_a_write_option(widget):
+    assert widget.write_networkx_graph_widget in widget._write_option_widgets
+
+
+def test_write_networkx_graph_round_trips_through_pipeline_config(widget):
+    widget.write_networkx_graph_widget.value = True
+    config = widget._get_current_pipeline_config()
+    assert config.output.write_networkx_graph is True
+
+    fresh = MaskAnalysisWidget(MagicMock())
+    try:
+        fresh._set_pipeline_config(config)
+        assert fresh.write_networkx_graph_widget.value is True
+    finally:
+        fresh.close()
 
 
 # -- image shape label -------------------------------------------------------

@@ -180,6 +180,7 @@ class MaskAnalysisWidget(Container):
             write_node_csv: bool = False,
             write_radius: bool = False,
             write_graphml: bool = False,
+            write_networkx_graph: bool = False,
         ) -> None:
             return None
 
@@ -298,7 +299,7 @@ class MaskAnalysisWidget(Container):
         cleanup_group = Container()
 
         self.fill_holes_widget = extraction_gui.fill_holes
-        self.fill_holes_widget.label = "Fill holes in segmentation"
+        self.fill_holes_widget.label = "Fill holes in mask"
 
         self.max_hole_size_widget = extraction_gui.max_hole_size
         self.max_hole_size_widget.label = "Max hole size (pixels)"
@@ -320,7 +321,7 @@ class MaskAnalysisWidget(Container):
         self.show_preprocessed_widget.label = "Show preprocessed mask"
 
         self.junction_cleanup_widget = extraction_gui.junction_cleanup
-        self.junction_cleanup_widget.label = "Collapse triangle junction artifacts"
+        self.junction_cleanup_widget.label = "Skeleton junction cleanup"
 
         self.cleanup_threshold_widget = extraction_gui.cleanup_threshold_factor
         self.cleanup_threshold_widget.label = "Cleanup threshold factor"
@@ -332,7 +333,7 @@ class MaskAnalysisWidget(Container):
         self.junction_cleanup_widget.changed.connect(_on_junction_cleanup_toggle)
 
         self.prune_spurs_widget = extraction_gui.prune_spurs
-        self.prune_spurs_widget.label = "Prune short spur branches"
+        self.prune_spurs_widget.label = "Prune skeleton spurs"
 
         self.min_spur_length_widget = extraction_gui.min_spur_length
         self.min_spur_length_widget.label = "Min spur length (pixels)"
@@ -403,19 +404,22 @@ class MaskAnalysisWidget(Container):
         self.image_widget.changed.connect(_update_skeleton_png_warning)
 
         self.write_summary_csv_widget = output_gui.write_summary_csv
-        self.write_summary_csv_widget.label = "Write summary CSV"
+        self.write_summary_csv_widget.label = "Write summary csv"
 
         self.write_radius_widget = output_gui.write_radius
         self.write_radius_widget.label = "Write radius matrix (.npy)"
 
         self.write_branch_csv_widget = output_gui.write_branch_csv
-        self.write_branch_csv_widget.label = "Write branch CSV"
+        self.write_branch_csv_widget.label = "Write branch csv"
 
         self.write_node_csv_widget = output_gui.write_node_csv
-        self.write_node_csv_widget.label = "Write node CSV"
+        self.write_node_csv_widget.label = "Write node csv"
 
         self.write_graphml_widget = output_gui.write_graphml
         self.write_graphml_widget.label = "Write graph (.graphml)"
+
+        self.write_networkx_graph_widget = output_gui.write_networkx_graph
+        self.write_networkx_graph_widget.label = "Write networkx graph (.pkl)"
 
         self._write_option_widgets = (
             self.write_skeleton_npy_widget,
@@ -425,9 +429,10 @@ class MaskAnalysisWidget(Container):
             self.write_node_csv_widget,
             self.write_radius_widget,
             self.write_graphml_widget,
+            self.write_networkx_graph_widget,
         )
 
-        self.select_outdir_btn = PushButton(text="Select Output Directory...")
+        self.select_outdir_btn = PushButton(text="Select output directory...")
         self.select_outdir_btn.clicked.connect(self._on_select_output_dir)
 
         self.output_dir_warning = Label(value="⚠️ Please select output directory")
@@ -446,6 +451,7 @@ class MaskAnalysisWidget(Container):
         output_group.append(self.write_node_csv_widget)
         output_group.append(self.write_radius_widget)
         output_group.append(self.write_graphml_widget)
+        output_group.append(self.write_networkx_graph_widget)
         output_group.append(self.select_outdir_btn)
         output_group.append(self.output_dir_warning)
 
@@ -454,10 +460,10 @@ class MaskAnalysisWidget(Container):
         # ============================================================
         config_group = Container()
 
-        self.load_btn = PushButton(text="Load Config")
+        self.load_btn = PushButton(text="Load recipe")
         self.load_btn.clicked.connect(self._on_load_config)
 
-        self.save_btn = PushButton(text="Save Config")
+        self.save_btn = PushButton(text="Save recipe")
         self.save_btn.clicked.connect(self._on_save_config)
 
         config_group.append(self.load_btn)
@@ -466,7 +472,7 @@ class MaskAnalysisWidget(Container):
         # ============================================================
         # Analyze Button
         # ============================================================
-        self.analyze_btn = PushButton(text="Analyze Mask")
+        self.analyze_btn = PushButton(text="Analyze mask")
         self.analyze_btn.clicked.connect(self._on_analyze)
 
         # ============================================================
@@ -488,19 +494,19 @@ class MaskAnalysisWidget(Container):
         content_layout = self._content_native.layout()
 
         self._spacing_collapsible = self._make_collapsible(
-            spacing_group, "Physical Spacing"
+            spacing_group, "Physical spacing"
         )
         self._extraction_collapsible = self._make_collapsible(
-            extraction_group, "Extraction Layers"
+            extraction_group, "Extraction layers"
         )
         self._cleanup_collapsible = self._make_collapsible(cleanup_group, "Cleanup")
         self._advanced_collapsible = self._make_collapsible(
-            advanced_group, "Advanced Features"
+            advanced_group, "Advanced features"
         )
         self._output_collapsible = self._make_collapsible(
-            output_group, "Output Settings"
+            output_group, "Output settings"
         )
-        self._config_collapsible = self._make_collapsible(config_group, "Configuration")
+        self._config_collapsible = self._make_collapsible(config_group, "Recipe")
 
         for collapsible in (
             self._spacing_collapsible,
@@ -574,6 +580,7 @@ class MaskAnalysisWidget(Container):
                 write_node_csv=self.write_node_csv_widget.value,
                 write_radius=self.write_radius_widget.value,
                 write_graphml=self.write_graphml_widget.value,
+                write_networkx_graph=self.write_networkx_graph_widget.value,
             ),
         )
 
@@ -607,6 +614,7 @@ class MaskAnalysisWidget(Container):
         self.write_node_csv_widget.value = o.write_node_csv
         self.write_radius_widget.value = o.write_radius
         self.write_graphml_widget.value = o.write_graphml
+        self.write_networkx_graph_widget.value = o.write_networkx_graph
 
         # A loaded config file can itself contain an inconsistent
         # combination (e.g. write_radius=true with mask_radius=false) -
