@@ -240,6 +240,41 @@ class TestMultiObjectLayers:
             result, "test", config=ExtractionConfig(nodes=True)
         )
         node_layer = next(
-            layer for layer in layers if layer[1].get("name", "").endswith("_nodes")
+            layer
+            for layer in layers
+            if layer[1].get("name") == "test_branch_and_end_nodes"
         )
         assert set(node_layer[1]["properties"]["object_id"]) == {5, 9}
+
+    def test_node_layer_named_branch_and_end_nodes(self, result):
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(nodes=True)
+        )
+        names = [layer[1].get("name") for layer in layers]
+        assert "test_branch_and_end_nodes" in names
+        assert "test_nodes" not in names
+
+    def test_node_layer_excludes_pass_through_nodes(self, result):
+        # Both crosses have plenty of degree-2 (pass-through) skeleton
+        # nodes along their arms, in addition to the degree-1 endpoints
+        # and degree-4 junction at each cross's center - the layer should
+        # keep only the latter two kinds.
+        assert any(r["degree"] == 2 for r in result.node_records)
+
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(nodes=True)
+        )
+        node_layer = next(
+            layer
+            for layer in layers
+            if layer[1].get("name") == "test_branch_and_end_nodes"
+        )
+        degrees = node_layer[1]["properties"]["degree"]
+        assert 2 not in degrees
+        assert set(degrees) == {1, 4}
+
+    def test_node_csv_data_unaffected_by_layer_filtering(self, result):
+        # The filter is display-only: node_records (what the CSV export
+        # reads from) still has every node, including pass-through ones.
+        degrees = [r["degree"] for r in result.node_records]
+        assert 2 in degrees

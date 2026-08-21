@@ -194,6 +194,18 @@ class MaskAnalysisWidget(Container):
         # ============================================================
         spacing_group = Container()
 
+        self.image_shape_label = Label(value="")
+
+        def _update_image_shape_label(*args) -> None:
+            img = self.image_widget.value
+            self.image_shape_label.value = (
+                f"Image shape: {img.data.shape} (enter spacing in this axis order)"
+                if img is not None
+                else ""
+            )
+
+        self.image_widget.changed.connect(_update_image_shape_label)
+
         self.spacing_widget = extraction_gui.spacing
 
         self.spacing_warning = Label(value="")
@@ -226,6 +238,7 @@ class MaskAnalysisWidget(Container):
         self.image_widget.changed.connect(_update_spacing_warning)
         self.spacing_widget.changed.connect(_update_spacing_warning)
 
+        spacing_group.append(self.image_shape_label)
         spacing_group.append(self.spacing_widget)
         spacing_group.append(self.spacing_warning)
 
@@ -248,6 +261,7 @@ class MaskAnalysisWidget(Container):
             self.branch_color_widget.enabled = self.extract_branches_widget.value
 
         self.extract_branches_widget.changed.connect(_on_branches_toggle)
+        self.extract_branches_widget.changed.connect(self._reconcile_dependent_widgets)
 
         def _update_branch_color_warning(*args) -> None:
             needs_radius = self.branch_color_widget.value in _RADIUS_REQUIRED_PROPS
@@ -262,18 +276,14 @@ class MaskAnalysisWidget(Container):
 
         self.extract_branch_text_widget = extraction_gui.extract_branch_text
         self.extract_branch_text_widget.label = "Add branch labels"
-        self.extract_branch_text_widget.enabled = self.extract_branches_widget.value
-
-        def _on_branches_toggle_branch_text(*args) -> None:
-            self.extract_branch_text_widget.enabled = self.extract_branches_widget.value
-
-        self.extract_branches_widget.changed.connect(_on_branches_toggle_branch_text)
 
         self.extract_summary_widget = extraction_gui.extract_summary
         self.extract_summary_widget.label = "Extract summary statistics"
+        self.extract_summary_widget.changed.connect(self._reconcile_dependent_widgets)
 
         self.extract_nodes_widget = extraction_gui.extract_nodes
         self.extract_nodes_widget.label = "Extract node features"
+        self.extract_nodes_widget.changed.connect(self._reconcile_dependent_widgets)
 
         extraction_group.append(self.extract_branches_widget)
         extraction_group.append(self.branch_color_widget)
@@ -298,21 +308,16 @@ class MaskAnalysisWidget(Container):
             self.max_hole_size_widget.enabled = self.fill_holes_widget.value
 
         self.fill_holes_widget.changed.connect(_on_fill_holes_toggle)
+        self.fill_holes_widget.changed.connect(self._reconcile_dependent_widgets)
 
         self.closing_iterations_widget = extraction_gui.closing_iterations
         self.closing_iterations_widget.label = "Closing iterations"
+        self.closing_iterations_widget.changed.connect(
+            self._reconcile_dependent_widgets
+        )
 
         self.show_preprocessed_widget = extraction_gui.show_preprocessed
         self.show_preprocessed_widget.label = "Show preprocessed mask"
-        self.show_preprocessed_widget.enabled = False
-
-        def _update_preprocessed_enabled(*args) -> None:
-            self.show_preprocessed_widget.enabled = (
-                self.fill_holes_widget.value or self.closing_iterations_widget.value > 0
-            )
-
-        self.fill_holes_widget.changed.connect(_update_preprocessed_enabled)
-        self.closing_iterations_widget.changed.connect(_update_preprocessed_enabled)
 
         self.junction_cleanup_widget = extraction_gui.junction_cleanup
         self.junction_cleanup_widget.label = "Collapse triangle junction artifacts"
@@ -365,6 +370,9 @@ class MaskAnalysisWidget(Container):
         self.include_mask_radius_widget = extraction_gui.include_mask_radius
 
         self.include_mask_radius_widget.changed.connect(_update_branch_color_warning)
+        self.include_mask_radius_widget.changed.connect(
+            self._reconcile_dependent_widgets
+        )
 
         advanced_group.append(self.include_mask_radius_widget)
 
@@ -399,43 +407,12 @@ class MaskAnalysisWidget(Container):
 
         self.write_radius_widget = output_gui.write_radius
         self.write_radius_widget.label = "Write radius matrix (.npy)"
-        self.write_radius_widget.enabled = self.include_mask_radius_widget.value
-
-        def _on_mask_radius_toggle_write_radius(*args) -> None:
-            self.write_radius_widget.enabled = self.include_mask_radius_widget.value
-
-        self.include_mask_radius_widget.changed.connect(
-            _on_mask_radius_toggle_write_radius
-        )
-
-        self.write_summary_csv_widget.enabled = self.extract_summary_widget.value
-
-        def _on_summary_toggle_write_summary_csv(*args) -> None:
-            self.write_summary_csv_widget.enabled = self.extract_summary_widget.value
-
-        self.extract_summary_widget.changed.connect(
-            _on_summary_toggle_write_summary_csv
-        )
 
         self.write_branch_csv_widget = output_gui.write_branch_csv
         self.write_branch_csv_widget.label = "Write branch CSV"
-        self.write_branch_csv_widget.enabled = self.extract_branches_widget.value
-
-        def _on_branches_toggle_write_branch_csv(*args) -> None:
-            self.write_branch_csv_widget.enabled = self.extract_branches_widget.value
-
-        self.extract_branches_widget.changed.connect(
-            _on_branches_toggle_write_branch_csv
-        )
 
         self.write_node_csv_widget = output_gui.write_node_csv
         self.write_node_csv_widget.label = "Write node CSV"
-        self.write_node_csv_widget.enabled = self.extract_nodes_widget.value
-
-        def _on_nodes_toggle_write_node_csv(*args) -> None:
-            self.write_node_csv_widget.enabled = self.extract_nodes_widget.value
-
-        self.extract_nodes_widget.changed.connect(_on_nodes_toggle_write_node_csv)
 
         self.write_graphml_widget = output_gui.write_graphml
         self.write_graphml_widget.label = "Write graph (.graphml)"
@@ -450,12 +427,16 @@ class MaskAnalysisWidget(Container):
             self.write_graphml_widget,
         )
 
+        self.select_outdir_btn = PushButton(text="Select Output Directory...")
+        self.select_outdir_btn.clicked.connect(self._on_select_output_dir)
+
         self.output_dir_warning = Label(value="⚠️ Please select output directory")
         self.output_dir_warning.visible = False
 
         for w in self._write_option_widgets:
-            w.changed.connect(self._update_output_dir_warning)
-        self._update_output_dir_warning()
+            w.changed.connect(self._update_output_dir_controls)
+        self._update_output_dir_controls()
+        self._reconcile_dependent_widgets()
 
         output_group.append(self.write_skeleton_npy_widget)
         output_group.append(self.write_skeleton_png_widget)
@@ -465,17 +446,8 @@ class MaskAnalysisWidget(Container):
         output_group.append(self.write_node_csv_widget)
         output_group.append(self.write_radius_widget)
         output_group.append(self.write_graphml_widget)
+        output_group.append(self.select_outdir_btn)
         output_group.append(self.output_dir_warning)
-
-        # ============================================================
-        # Output Directory
-        # ============================================================
-        outdir_group = Container()
-
-        self.select_outdir_btn = PushButton(text="Select Output Directory...")
-        self.select_outdir_btn.clicked.connect(self._on_select_output_dir)
-
-        outdir_group.append(self.select_outdir_btn)
 
         # ============================================================
         # Configuration Management
@@ -528,9 +500,6 @@ class MaskAnalysisWidget(Container):
         self._output_collapsible = self._make_collapsible(
             output_group, "Output Settings"
         )
-        self._outdir_collapsible = self._make_collapsible(
-            outdir_group, "Output Directory"
-        )
         self._config_collapsible = self._make_collapsible(config_group, "Configuration")
 
         for collapsible in (
@@ -539,7 +508,6 @@ class MaskAnalysisWidget(Container):
             self._cleanup_collapsible,
             self._advanced_collapsible,
             self._output_collapsible,
-            self._outdir_collapsible,
             self._config_collapsible,
         ):
             content_layout.addWidget(collapsible)
@@ -640,6 +608,13 @@ class MaskAnalysisWidget(Container):
         self.write_radius_widget.value = o.write_radius
         self.write_graphml_widget.value = o.write_graphml
 
+        # A loaded config file can itself contain an inconsistent
+        # combination (e.g. write_radius=true with mask_radius=false) -
+        # reconcile after setting the raw values so the widget never
+        # displays one, rather than only preventing it going forward.
+        self._reconcile_dependent_widgets()
+        self._update_output_dir_controls()
+
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
@@ -685,16 +660,55 @@ class MaskAnalysisWidget(Container):
         if dir_path:
             self._output_dir = Path(dir_path)
             self.select_outdir_btn.text = str(self._output_dir)
-            self._update_output_dir_warning()
+            self._update_output_dir_controls()
 
-    def _update_output_dir_warning(self, *args) -> None:
-        """Show a warning when any write option is on but no output
-        directory is selected yet - results would otherwise never be
-        saved. ``self._output_dir`` is a plain attribute (not a magicgui
-        widget), so it has no ``.changed`` signal of its own; this is
-        called directly from ``_on_select_output_dir`` instead."""
+    def _update_output_dir_controls(self, *args) -> None:
+        """Keep the output-directory button and its warning in sync with
+        whether any write option is active. The button is disabled when
+        none is (nothing would be saved, so there's nothing to pick a
+        directory for); the warning shows when one is active but no
+        directory has been selected yet, since results would otherwise
+        silently never be saved. ``self._output_dir`` is a plain attribute
+        (not a magicgui widget), so it has no ``.changed`` signal of its
+        own - this is called directly from ``_on_select_output_dir``
+        instead. Selecting a directory while every write option happens to
+        be off, then re-enabling one later, is unaffected: the previously
+        selected path is preserved either way, only the button's enabled
+        state and the warning change."""
         any_write_active = any(w.value for w in self._write_option_widgets)
+        self.select_outdir_btn.enabled = any_write_active
         self.output_dir_warning.visible = any_write_active and self._output_dir is None
+
+    def _reconcile_dependent_widgets(self, *args) -> None:
+        """Keep every checkbox that's only meaningful while another
+        checkbox is on in sync with that parent: disabled, and - unlike a
+        plain ``.enabled`` toggle, which would otherwise leave it checked
+        while grayed out - explicitly unchecked too. Without this, a
+        config saved while e.g. "Radius features" was on and then turned
+        back off would still have "Write radius matrix" sitting checked,
+        producing a saved JSON with an inconsistent combination like
+        ``write_radius=true, mask_radius=false`` that silently writes
+        nothing. Connected to every parent's ``.changed`` below, and also
+        called once after ``_set_pipeline_config`` sets raw values from a
+        loaded config, so a config file with that same inconsistency gets
+        corrected on load rather than reproduced in the widget."""
+        for parent, dependent in (
+            (self.extract_branches_widget, self.extract_branch_text_widget),
+            (self.extract_branches_widget, self.write_branch_csv_widget),
+            (self.include_mask_radius_widget, self.write_radius_widget),
+            (self.extract_summary_widget, self.write_summary_csv_widget),
+            (self.extract_nodes_widget, self.write_node_csv_widget),
+        ):
+            dependent.enabled = parent.value
+            if not parent.value:
+                dependent.value = False
+
+        preprocessing_active = (
+            self.fill_holes_widget.value or self.closing_iterations_widget.value > 0
+        )
+        self.show_preprocessed_widget.enabled = preprocessing_active
+        if not preprocessing_active:
+            self.show_preprocessed_widget.value = False
 
     def _recolor_branch_layers(self, *args) -> None:
         """Recolor existing branch layers without re-running analysis."""
