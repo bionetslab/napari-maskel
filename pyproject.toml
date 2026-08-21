@@ -2,7 +2,7 @@
 name = "napari-maskel"
 license = "MIT"
 
-version = "1.1.0"
+version = "1.1.1"
 description = "napari plugin for maskel: vessel skeletonization and feature extraction"
 
 readme = "README.md"
