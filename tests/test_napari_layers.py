@@ -3,7 +3,12 @@ import pytest
 from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
 from maskel.pipeline import analyze_segmentation_mask
 
-from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
+from napari_maskel.napari_layers import (
+    _POINT_CANVAS_SIZE_LIMITS,
+    _proportional_edge_width,
+    extract_skeleton_layers,
+    parse_spacing_input,
+)
 
 
 class TestParseSpacingInput:
@@ -278,3 +283,60 @@ class TestMultiObjectLayers:
         # reads from) still has every node, including pass-through ones.
         degrees = [r["degree"] for r in result.node_records]
         assert 2 in degrees
+
+
+class TestLayerMarkerScale:
+    """A fixed data-space size that looks right on a tiny synthetic test
+    image renders as an imperceptible, often-dotted line/point on a
+    multi-thousand-pixel real image (e.g. a full-resolution fundus photo) -
+    see _proportional_edge_width and _POINT_CANVAS_SIZE_LIMITS."""
+
+    def test_proportional_edge_width_floors_at_one_for_small_images(self):
+        assert _proportional_edge_width((32, 32)) == 1.0
+        assert _proportional_edge_width((400, 400)) == 1.0
+
+    def test_proportional_edge_width_scales_with_image_size(self):
+        assert _proportional_edge_width((2000, 2000)) == pytest.approx(4.0)
+        assert _proportional_edge_width((2336, 3504)) == pytest.approx(3504 / 500)
+
+    def test_branch_layer_edge_width_matches_helper(self):
+        mask = _cross_mask(size=32)
+        result = _analyze(mask, branches=True, summary=True)
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
+        )
+        branch_layer = next(layer for layer in layers if layer[2] == "shapes")
+        assert branch_layer[1]["edge_width"] == _proportional_edge_width(mask.shape)
+
+    def test_branch_layer_edge_width_scales_on_a_larger_image(self):
+        big_mask = np.zeros((2000, 2000), dtype=np.uint8)
+        big_mask[1000, :] = 1
+        big_mask[:, 1000] = 1
+        result = _analyze(big_mask, branches=True, summary=True)
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(branches=True, summary=True)
+        )
+        branch_layer = next(layer for layer in layers if layer[2] == "shapes")
+        assert branch_layer[1]["edge_width"] == pytest.approx(4.0)
+
+    def test_node_layer_has_canvas_size_limits(self):
+        result = _analyze(_two_object_mask(), nodes=True)
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(nodes=True)
+        )
+        node_layer = next(
+            layer
+            for layer in layers
+            if layer[1].get("name") == "test_branch_and_end_nodes"
+        )
+        assert node_layer[1]["canvas_size_limits"] == _POINT_CANVAS_SIZE_LIMITS
+
+    def test_summary_layer_has_canvas_size_limits(self):
+        result = _analyze(_two_object_mask(), summary=True)
+        layers = extract_skeleton_layers(
+            result, "test", config=ExtractionConfig(summary=True)
+        )
+        summary_layer = next(
+            layer for layer in layers if layer[1].get("name") == "test_summary"
+        )
+        assert summary_layer[1]["canvas_size_limits"] == _POINT_CANVAS_SIZE_LIMITS
