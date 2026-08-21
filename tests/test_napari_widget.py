@@ -36,6 +36,7 @@ def _mock_layer(shape):
     layer = MagicMock()
     layer.data = MagicMock()
     layer.data.ndim = len(shape)
+    layer.data.shape = shape
     layer.scale = tuple(1.0 for _ in shape)
     return layer
 
@@ -86,7 +87,6 @@ def test_all_groups_collapsible_and_expanded_by_default(widget):
         "_cleanup_collapsible",
         "_advanced_collapsible",
         "_output_collapsible",
-        "_outdir_collapsible",
         "_config_collapsible",
     ):
         assert getattr(widget, name).isExpanded() is True
@@ -96,7 +96,8 @@ def test_group_order_matches_original_layout(widget):
     # image selector, then every group in its original relative order, then
     # the Analyze button last. Regression test for a bug where mixing
     # self.append() with raw layout insertions silently reordered widgets
-    # added after the first raw insertion.
+    # added after the first raw insertion. No separate "Output Directory"
+    # section any more - select_outdir_btn now lives inside "Output Settings".
     layout = widget._content_native.layout()
     titles = []
     for i in range(layout.count()):
@@ -106,13 +107,12 @@ def test_group_order_matches_original_layout(widget):
 
     assert titles == [
         "QWidget",
-        "Physical Spacing",
-        "Extraction Layers",
+        "Physical spacing",
+        "Extraction layers",
         "Cleanup",
-        "Advanced Features",
-        "Output Settings",
-        "Output Directory",
-        "Configuration",
+        "Advanced features",
+        "Output settings",
+        "Recipe",
         "QPushButton",
     ]
     assert isinstance(layout.itemAt(layout.count() - 1).widget(), QPushButton)
@@ -133,6 +133,15 @@ def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widge
 
 def test_show_preprocessed_label(widget):
     assert widget.show_preprocessed_widget.label == "Show preprocessed mask"
+
+
+def test_relabeled_widgets(widget):
+    assert widget.fill_holes_widget.label == "Fill holes in mask"
+    assert widget.junction_cleanup_widget.label == "Skeleton junction cleanup"
+    assert widget.prune_spurs_widget.label == "Prune skeleton spurs"
+    assert widget.load_btn.text == "Load recipe"
+    assert widget.save_btn.text == "Save recipe"
+    assert widget.analyze_btn.text == "Analyze mask"
 
 
 def test_prune_spurs_toggle_still_enables_dependents(widget):
@@ -177,17 +186,17 @@ def test_output_dir_warning_hidden_when_no_write_option_active(widget):
 def test_output_dir_warning_hidden_once_output_dir_selected(widget):
     assert widget.output_dir_warning.visible is True
     widget._output_dir = "/tmp/fake"
-    widget._update_output_dir_warning()
+    widget._update_output_dir_controls()
     assert widget.output_dir_warning.visible is False
 
 
 def test_output_dir_warning_reappears_if_output_dir_cleared(widget):
     widget._output_dir = "/tmp/fake"
-    widget._update_output_dir_warning()
+    widget._update_output_dir_controls()
     assert widget.output_dir_warning.visible is False
 
     widget._output_dir = None
-    widget._update_output_dir_warning()
+    widget._update_output_dir_controls()
     assert widget.output_dir_warning.visible is True
 
 
@@ -198,6 +207,140 @@ def test_output_dir_warning_reacts_to_any_single_write_option(widget):
 
     widget.write_graphml_widget.value = True
     assert widget.output_dir_warning.visible is True
+
+
+def test_output_dir_button_disabled_when_no_write_option_active(widget):
+    assert widget.select_outdir_btn.enabled is True  # npy+summary csv default on
+
+    for w in widget._write_option_widgets:
+        w.value = False
+    assert widget.select_outdir_btn.enabled is False
+
+    widget.write_graphml_widget.value = True
+    assert widget.select_outdir_btn.enabled is True
+
+
+def test_output_dir_button_lives_in_output_settings_group(widget):
+    from qtpy.QtWidgets import QPushButton as QPB
+
+    output_settings_native = widget._output_collapsible
+    buttons = [
+        b.text()
+        for b in output_settings_native.findChildren(QPB)
+        if b.text() == "Select output directory..."
+    ]
+    assert buttons == ["Select output directory..."]
+
+
+def test_selecting_output_dir_preserves_path_after_disable_and_reenable(widget):
+    widget._output_dir = "/tmp/fake"
+    widget.select_outdir_btn.text = "/tmp/fake"
+
+    for w in widget._write_option_widgets:
+        w.value = False
+    assert widget.select_outdir_btn.enabled is False
+    assert widget._output_dir == "/tmp/fake"
+
+    widget.write_graphml_widget.value = True
+    assert widget.select_outdir_btn.enabled is True
+    assert widget._output_dir == "/tmp/fake"
+    assert widget.output_dir_warning.visible is False
+
+
+# -- networkx graph export ---------------------------------------------------
+
+
+def test_write_networkx_graph_widget_label(widget):
+    assert widget.write_networkx_graph_widget.label == "Write networkx graph (.pkl)"
+
+
+def test_write_networkx_graph_is_a_write_option(widget):
+    assert widget.write_networkx_graph_widget in widget._write_option_widgets
+
+
+def test_write_networkx_graph_round_trips_through_pipeline_config(widget):
+    widget.write_networkx_graph_widget.value = True
+    config = widget._get_current_pipeline_config()
+    assert config.output.write_networkx_graph is True
+
+    fresh = MaskAnalysisWidget(MagicMock())
+    try:
+        fresh._set_pipeline_config(config)
+        assert fresh.write_networkx_graph_widget.value is True
+    finally:
+        fresh.close()
+
+
+# -- image shape label -------------------------------------------------------
+
+
+def test_image_shape_label_empty_with_no_image_selected(widget):
+    assert widget.image_shape_label.value == ""
+
+
+def test_image_shape_label_shows_shape_on_image_change(widget):
+    layer = _mock_layer((12, 34, 56))
+    _select_image(widget, layer)
+    widget.image_widget.changed.emit(layer)
+    assert "(12, 34, 56)" in widget.image_shape_label.value
+
+
+# -- dependent widgets auto-uncheck ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "parent_name,dependent_name",
+    [
+        ("extract_branches_widget", "extract_branch_text_widget"),
+        ("extract_branches_widget", "write_branch_csv_widget"),
+        ("include_mask_radius_widget", "write_radius_widget"),
+        ("extract_summary_widget", "write_summary_csv_widget"),
+        ("extract_nodes_widget", "write_node_csv_widget"),
+    ],
+)
+def test_dependent_checkbox_auto_unchecks_when_parent_turns_off(
+    widget, parent_name, dependent_name
+):
+    parent = getattr(widget, parent_name)
+    dependent = getattr(widget, dependent_name)
+
+    parent.value = True
+    dependent.value = True
+    assert dependent.enabled is True
+
+    parent.value = False
+    assert dependent.enabled is False
+    assert dependent.value is False
+
+
+def test_show_preprocessed_auto_unchecks_when_fill_holes_and_closing_off(widget):
+    widget.fill_holes_widget.value = True
+    widget.show_preprocessed_widget.value = True
+    assert widget.show_preprocessed_widget.enabled is True
+
+    widget.fill_holes_widget.value = False
+    assert widget.show_preprocessed_widget.enabled is False
+    assert widget.show_preprocessed_widget.value is False
+
+
+def test_show_preprocessed_stays_enabled_via_closing_iterations_alone(widget):
+    widget.closing_iterations_widget.value = 2
+    widget.show_preprocessed_widget.value = True
+
+    widget.fill_holes_widget.value = True
+    widget.fill_holes_widget.value = False
+    assert widget.show_preprocessed_widget.enabled is True
+    assert widget.show_preprocessed_widget.value is True
+
+
+def test_loading_config_with_inconsistent_state_is_reconciled(widget):
+    config = PipelineConfig(
+        extraction=ExtractionConfig(mask_radius=False),
+        output=OutputConfig(write_radius=True),
+    )
+    widget._set_pipeline_config(config)
+    assert widget.write_radius_widget.value is False
+    assert widget.write_radius_widget.enabled is False
 
 
 # -- spacing field ----------------------------------------------------------

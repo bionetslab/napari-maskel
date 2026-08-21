@@ -291,7 +291,16 @@ def _extract_node_features_layer(
     base_name: str,
     node_records: list[dict[str, object]],
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
-    """Create a points layer showing graph nodes colored by degree.
+    """Create a points layer showing branch/end nodes (degree != 2), colored
+    by degree.
+
+    Pass-through nodes (degree == 2) are omitted from this layer - they
+    just mark where a branch bends, not a true topological feature, so
+    dropping them makes the layer read as a graph (endpoints and
+    junctions only) alongside the branches layer, rather than every single
+    skeleton-graph node. This is a display-only filter: the underlying
+    ``node_records``/node CSV export are unaffected and still include
+    every node, including pass-through ones.
 
     Parameters
     ----------
@@ -301,22 +310,21 @@ def _extract_node_features_layer(
         Pre-computed node records (e.g. from `AnalysisResult.node_records`),
         already in global image coordinates and tagged with ``object_id``.
     """
-    if not node_records:
+    filtered = [r for r in node_records if r.get("degree") != 2]
+    if not filtered:
         return None
 
-    ndim = sum(1 for k in node_records[0] if k.startswith("coord_"))
+    ndim = sum(1 for k in filtered[0] if k.startswith("coord_"))
     points = np.array(
-        [tuple(r[f"coord_{d}"] for d in range(ndim)) for r in node_records], dtype=float
+        [tuple(r[f"coord_{d}"] for d in range(ndim)) for r in filtered], dtype=float
     )
 
     props = {
-        k: [r[k] for r in node_records]
-        for k in node_records[0]
-        if not k.startswith("coord_")
+        k: [r[k] for r in filtered] for k in filtered[0] if not k.startswith("coord_")
     }
 
     meta = {
-        "name": f"{base_name}_nodes",
+        "name": f"{base_name}_branch_and_end_nodes",
         "properties": props,
         "symbol": "disc",
         "size": 3,
