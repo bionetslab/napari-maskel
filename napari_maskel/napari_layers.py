@@ -61,6 +61,36 @@ def parse_spacing_input(
     return values, None
 
 
+# Points layers clamp their on-screen size to this range in canvas pixels
+# (napari's Points `canvas_size_limits`), so branch/end nodes and per-object
+# summary markers stay visible regardless of image size or zoom - without
+# it, a fixed *data-space* point size (the same units as image pixels)
+# renders as an imperceptible dot on a multi-thousand-pixel image like a
+# full-resolution fundus photo, even though it looks fine on a small test
+# image. Shapes (the branches path layer) has no such canvas-space option
+# in napari, so its edge_width is instead computed proportionally to the
+# image's own size - see _proportional_edge_width.
+_POINT_CANVAS_SIZE_LIMITS = (4.0, 30.0)
+
+
+def _proportional_edge_width(image_shape: tuple[int, ...]) -> float:
+    """A branch-path edge_width (data-space units) that scales with the
+    image's own size, floored at 1.0.
+
+    Shapes' edge_width has no canvas-pixel-space option (unlike Points'
+    canvas_size_limits), so a fixed absolute value that looks right on a
+    small synthetic test image (tens of pixels) renders as a barely-visible,
+    often dotted line on a full-resolution image spanning thousands of
+    pixels - and the reverse: a value tuned for a large image would look
+    like a thick blob on a small one. /500 keeps a ~3500px-wide fundus
+    photo's branches a few screen pixels wide at a typical fit-to-window
+    zoom (mean branch length there is ~140px, so this stays comfortably
+    thinner than even a short branch) while still flooring to something
+    visible on tiny images.
+    """
+    return max(1.0, max(image_shape) / 500.0)
+
+
 def extract_skeleton_layers(
     result: AnalysisResult,
     base_name: str,
@@ -88,6 +118,7 @@ def extract_skeleton_layers(
         branch_layer = _extract_branch_features_layer(
             base_name,
             result.objects,
+            result.skeleton.shape,
             color_property=config.branch_color_property,
         )
         if branch_layer is not None:
@@ -139,6 +170,7 @@ def _extract_radius_layer(
 def _extract_branch_features_layer(
     base_name: str,
     objects: list[ObjectResult],
+    image_shape: tuple[int, ...],
     color_property: str = "tortuosity",
 ) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Build one combined branch-paths layer spanning all objects.
@@ -151,6 +183,10 @@ def _extract_branch_features_layer(
         Per-object results (from `AnalysisResult.objects`). Branch path
         coordinates are offset into global image coordinates using each
         object's own crop offset.
+    image_shape : tuple[int, ...]
+        Full image shape (e.g. `AnalysisResult.skeleton.shape`), used to
+        scale edge_width to the image's own size - see
+        `_proportional_edge_width`.
     color_property : str
         Branch property to use for edge coloring (including ``object_id``).
         Must be a numeric column. Defaults to "tortuosity".
@@ -187,7 +223,7 @@ def _extract_branch_features_layer(
         "shape_type": "path",
         "properties": branch_data,
         "face_color": "transparent",
-        "edge_width": 0.5,
+        "edge_width": _proportional_edge_width(image_shape),
         "opacity": 0.95,
     }
 
@@ -274,6 +310,7 @@ def _extract_summary_features_layer(
         "properties": meta_features,
         "symbol": "ring",
         "size": 8,
+        "canvas_size_limits": _POINT_CANVAS_SIZE_LIMITS,
         "face_color": "transparent",
         "border_color": "yellow",
         "opacity": 0.9,
@@ -328,6 +365,7 @@ def _extract_node_features_layer(
         "properties": props,
         "symbol": "disc",
         "size": 3,
+        "canvas_size_limits": _POINT_CANVAS_SIZE_LIMITS,
         "face_color": "degree",
         "face_colormap": "viridis",
         "opacity": 0.8,
