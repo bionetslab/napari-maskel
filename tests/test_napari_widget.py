@@ -258,6 +258,41 @@ def test_write_networkx_graph_is_a_write_option(widget):
     assert widget.write_networkx_graph_widget in widget._write_option_widgets
 
 
+# -- checkbox text actually rendered on the native Qt widget -----------------
+#
+# CheckBox is the one magicgui widget type that displays its own caption
+# directly on the native Qt control via a separate `.text` attribute, rather
+# than through the external QLabel that `.label` normally controls - so
+# `widget.label == "..."` alone (as asserted above) can pass even when the
+# *rendered* checkbox still shows old/auto-derived text. These checks catch
+# that class of bug by reading `.native.text()`, what a user actually sees.
+_CHECKBOX_LABELS = {
+    "extract_branches_widget": "Extract branches",
+    "extract_branch_text_widget": "Add branch labels",
+    "extract_summary_widget": "Extract summary statistics",
+    "extract_nodes_widget": "Extract node features",
+    "fill_holes_widget": "Fill holes in mask",
+    "show_preprocessed_widget": "Show preprocessed mask",
+    "junction_cleanup_widget": "Skeleton junction cleanup",
+    "prune_spurs_widget": "Prune skeleton spurs",
+    "write_skeleton_npy_widget": "Write skeleton (.npy)",
+    "write_skeleton_png_widget": "Write skeleton (.png)",
+    "write_summary_csv_widget": "Write summary csv",
+    "write_radius_widget": "Write radius matrix (.npy)",
+    "write_branch_csv_widget": "Write branch csv",
+    "write_node_csv_widget": "Write node csv",
+    "write_graphml_widget": "Write graph (.graphml)",
+    "write_networkx_graph_widget": "Write networkx graph (.pkl)",
+}
+
+
+@pytest.mark.parametrize("attr_name, expected", _CHECKBOX_LABELS.items())
+def test_checkbox_native_text_matches_intended_label(widget, attr_name, expected):
+    checkbox = getattr(widget, attr_name)
+    assert checkbox.native.text() == expected
+    assert checkbox.label == expected
+
+
 def test_write_networkx_graph_round_trips_through_pipeline_config(widget):
     widget.write_networkx_graph_widget.value = True
     config = widget._get_current_pipeline_config()

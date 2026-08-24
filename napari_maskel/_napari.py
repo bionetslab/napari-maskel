@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from magicgui import magicgui
-from magicgui.widgets import Container, Label, PushButton
+from magicgui.widgets import CheckBox, Container, Label, PushButton
 from maskel._io import save_analysis_outputs
 from maskel.pipeline import analyze_segmentation_mask
 from napari.layers import Layer, Shapes
@@ -249,7 +249,7 @@ class MaskAnalysisWidget(Container):
         extraction_group = Container()
 
         self.extract_branches_widget = extraction_gui.extract_branches
-        self.extract_branches_widget.label = "Extract branches"
+        self._set_checkbox_text(self.extract_branches_widget, "Extract branches")
 
         self.branch_color_widget = extraction_gui.branch_color_property
         self.branch_color_widget.label = "Branch color by"
@@ -276,14 +276,16 @@ class MaskAnalysisWidget(Container):
         # after that widget is created
 
         self.extract_branch_text_widget = extraction_gui.extract_branch_text
-        self.extract_branch_text_widget.label = "Add branch labels"
+        self._set_checkbox_text(self.extract_branch_text_widget, "Add branch labels")
 
         self.extract_summary_widget = extraction_gui.extract_summary
-        self.extract_summary_widget.label = "Extract summary statistics"
+        self._set_checkbox_text(
+            self.extract_summary_widget, "Extract summary statistics"
+        )
         self.extract_summary_widget.changed.connect(self._reconcile_dependent_widgets)
 
         self.extract_nodes_widget = extraction_gui.extract_nodes
-        self.extract_nodes_widget.label = "Extract node features"
+        self._set_checkbox_text(self.extract_nodes_widget, "Extract node features")
         self.extract_nodes_widget.changed.connect(self._reconcile_dependent_widgets)
 
         extraction_group.append(self.extract_branches_widget)
@@ -299,7 +301,7 @@ class MaskAnalysisWidget(Container):
         cleanup_group = Container()
 
         self.fill_holes_widget = extraction_gui.fill_holes
-        self.fill_holes_widget.label = "Fill holes in mask"
+        self._set_checkbox_text(self.fill_holes_widget, "Fill holes in mask")
 
         self.max_hole_size_widget = extraction_gui.max_hole_size
         self.max_hole_size_widget.label = "Max hole size (pixels)"
@@ -318,10 +320,12 @@ class MaskAnalysisWidget(Container):
         )
 
         self.show_preprocessed_widget = extraction_gui.show_preprocessed
-        self.show_preprocessed_widget.label = "Show preprocessed mask"
+        self._set_checkbox_text(self.show_preprocessed_widget, "Show preprocessed mask")
 
         self.junction_cleanup_widget = extraction_gui.junction_cleanup
-        self.junction_cleanup_widget.label = "Skeleton junction cleanup"
+        self._set_checkbox_text(
+            self.junction_cleanup_widget, "Skeleton junction cleanup"
+        )
 
         self.cleanup_threshold_widget = extraction_gui.cleanup_threshold_factor
         self.cleanup_threshold_widget.label = "Cleanup threshold factor"
@@ -333,7 +337,7 @@ class MaskAnalysisWidget(Container):
         self.junction_cleanup_widget.changed.connect(_on_junction_cleanup_toggle)
 
         self.prune_spurs_widget = extraction_gui.prune_spurs
-        self.prune_spurs_widget.label = "Prune skeleton spurs"
+        self._set_checkbox_text(self.prune_spurs_widget, "Prune skeleton spurs")
 
         self.min_spur_length_widget = extraction_gui.min_spur_length
         self.min_spur_length_widget.label = "Min spur length (pixels)"
@@ -383,10 +387,10 @@ class MaskAnalysisWidget(Container):
         output_group = Container()
 
         self.write_skeleton_npy_widget = output_gui.write_skeleton_npy
-        self.write_skeleton_npy_widget.label = "Write skeleton (.npy)"
+        self._set_checkbox_text(self.write_skeleton_npy_widget, "Write skeleton (.npy)")
 
         self.write_skeleton_png_widget = output_gui.write_skeleton_png
-        self.write_skeleton_png_widget.label = "Write skeleton (.png)"
+        self._set_checkbox_text(self.write_skeleton_png_widget, "Write skeleton (.png)")
 
         self.write_skeleton_png_warning = Label(
             value="⚠️ 3D image selected: PNG export will be skipped"
@@ -404,22 +408,24 @@ class MaskAnalysisWidget(Container):
         self.image_widget.changed.connect(_update_skeleton_png_warning)
 
         self.write_summary_csv_widget = output_gui.write_summary_csv
-        self.write_summary_csv_widget.label = "Write summary csv"
+        self._set_checkbox_text(self.write_summary_csv_widget, "Write summary csv")
 
         self.write_radius_widget = output_gui.write_radius
-        self.write_radius_widget.label = "Write radius matrix (.npy)"
+        self._set_checkbox_text(self.write_radius_widget, "Write radius matrix (.npy)")
 
         self.write_branch_csv_widget = output_gui.write_branch_csv
-        self.write_branch_csv_widget.label = "Write branch csv"
+        self._set_checkbox_text(self.write_branch_csv_widget, "Write branch csv")
 
         self.write_node_csv_widget = output_gui.write_node_csv
-        self.write_node_csv_widget.label = "Write node csv"
+        self._set_checkbox_text(self.write_node_csv_widget, "Write node csv")
 
         self.write_graphml_widget = output_gui.write_graphml
-        self.write_graphml_widget.label = "Write graph (.graphml)"
+        self._set_checkbox_text(self.write_graphml_widget, "Write graph (.graphml)")
 
         self.write_networkx_graph_widget = output_gui.write_networkx_graph
-        self.write_networkx_graph_widget.label = "Write networkx graph (.pkl)"
+        self._set_checkbox_text(
+            self.write_networkx_graph_widget, "Write networkx graph (.pkl)"
+        )
 
         self._write_option_widgets = (
             self.write_skeleton_npy_widget,
@@ -532,6 +538,27 @@ class MaskAnalysisWidget(Container):
         collapsible.addWidget(group.native)
         collapsible.expand(animate=False)
         return collapsible
+
+    @staticmethod
+    def _set_checkbox_text(widget: CheckBox, text: str) -> None:
+        """Set a magicgui ``CheckBox``'s displayed text.
+
+        Unlike most widget types - which pair with a separate ``QLabel``
+        reflecting ``.label``, rendered by the parent ``Container`` - a
+        ``CheckBox`` shows its own caption directly on the native Qt
+        control, set once at construction from either an explicit
+        ``"label"`` option or (absent one) the parameter name. Setting
+        ``.label`` afterward, the pattern used everywhere else in this
+        file, updates that Python-level attribute but never touches what's
+        actually drawn on screen - the checkbox keeps showing its original
+        auto-derived text (e.g. "junction cleanup" instead of "Skeleton
+        junction cleanup") regardless. ``.text`` is the separate attribute
+        that actually is wired to the native control; ``.label`` is set
+        too since magicgui uses it internally (e.g. to align label widths
+        across a container), so the two shouldn't be left inconsistent.
+        """
+        widget.label = text
+        widget.text = text
 
     # ------------------------------------------------------------------
     # Config get / set (full PipelineConfig)
