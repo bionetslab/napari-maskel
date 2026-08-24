@@ -62,6 +62,15 @@ def test_constructs_and_is_scrollable(widget):
     assert widget._scrollable is True
 
 
+def test_brand_color_applied_to_checkboxes_and_headers(widget):
+    from napari_maskel._napari import _BRAND_COLOR
+
+    style = widget._content_native.styleSheet()
+    assert "QCheckBox::indicator:checked" in style
+    assert "QPushButton:checked" in style
+    assert _BRAND_COLOR in style
+
+
 def test_native_exposes_the_scroll_area_for_napari(widget):
     # napari's add_dock_widget embeds `widget.native` verbatim, but
     # magicgui's own `.native` deliberately returns the *unwrapped* content
@@ -93,11 +102,12 @@ def test_all_groups_collapsible_and_expanded_by_default(widget):
 
 
 def test_group_order_matches_original_layout(widget):
-    # image selector, then every group in its original relative order, then
-    # the Analyze button last. Regression test for a bug where mixing
-    # self.append() with raw layout insertions silently reordered widgets
-    # added after the first raw insertion. No separate "Output Directory"
-    # section any more - select_outdir_btn now lives inside "Output Settings".
+    # logo, image selector, then every group in its original relative
+    # order, then the Analyze button last. Regression test for a bug where
+    # mixing self.append() with raw layout insertions silently reordered
+    # widgets added after the first raw insertion. No separate "Output
+    # Directory" section any more - select_outdir_btn now lives inside
+    # "Output Settings".
     layout = widget._content_native.layout()
     titles = []
     for i in range(layout.count()):
@@ -106,6 +116,7 @@ def test_group_order_matches_original_layout(widget):
         titles.append(toggle().text() if toggle else type(wdg).__name__)
 
     assert titles == [
+        "QLabel",
         "QWidget",
         "Physical spacing",
         "Extraction layers",
@@ -123,6 +134,35 @@ def test_image_selector_label_preserved(widget):
 
     labels = [lbl.text() for lbl in widget._content_native.findChildren(QLabel)]
     assert "Input segmentation (labels layer)" in labels
+
+
+# -- logo ---------------------------------------------------------------
+
+
+def test_logo_is_first_widget_in_layout(widget):
+    layout = widget._content_native.layout()
+    from qtpy.QtWidgets import QLabel as _QLabel
+
+    assert isinstance(layout.itemAt(0).widget(), _QLabel)
+
+
+def test_logo_pixmap_loaded_and_scaled_small(widget):
+    from napari_maskel._napari import _LOGO_DISPLAY_HEIGHT
+
+    layout = widget._content_native.layout()
+    logo_label = layout.itemAt(0).widget()
+    pixmap = logo_label.pixmap()
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.height() == _LOGO_DISPLAY_HEIGHT
+
+
+def test_logo_is_left_aligned(widget):
+    from qtpy.QtCore import Qt
+
+    layout = widget._content_native.layout()
+    logo_label = layout.itemAt(0).widget()
+    assert logo_label.alignment() & Qt.AlignLeft
 
 
 def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widget):
@@ -258,6 +298,41 @@ def test_write_networkx_graph_is_a_write_option(widget):
     assert widget.write_networkx_graph_widget in widget._write_option_widgets
 
 
+# -- checkbox text actually rendered on the native Qt widget -----------------
+#
+# CheckBox is the one magicgui widget type that displays its own caption
+# directly on the native Qt control via a separate `.text` attribute, rather
+# than through the external QLabel that `.label` normally controls - so
+# `widget.label == "..."` alone (as asserted above) can pass even when the
+# *rendered* checkbox still shows old/auto-derived text. These checks catch
+# that class of bug by reading `.native.text()`, what a user actually sees.
+_CHECKBOX_LABELS = {
+    "extract_branches_widget": "Extract branch features",
+    "extract_branch_text_widget": "Add branch labels",
+    "extract_summary_widget": "Extract object-level features",
+    "extract_nodes_widget": "Extract node features",
+    "fill_holes_widget": "Fill holes in mask",
+    "show_preprocessed_widget": "Show preprocessed mask",
+    "junction_cleanup_widget": "Skeleton junction cleanup",
+    "prune_spurs_widget": "Prune skeleton spurs",
+    "write_skeleton_npy_widget": "Write skeleton (.npy)",
+    "write_skeleton_png_widget": "Write skeleton (.png)",
+    "write_summary_csv_widget": "Write summary csv",
+    "write_radius_widget": "Write radius matrix (.npy)",
+    "write_branch_csv_widget": "Write branch csv",
+    "write_node_csv_widget": "Write node csv",
+    "write_graphml_widget": "Write graph (.graphml)",
+    "write_networkx_graph_widget": "Write networkx graph (.pkl)",
+}
+
+
+@pytest.mark.parametrize("attr_name, expected", _CHECKBOX_LABELS.items())
+def test_checkbox_native_text_matches_intended_label(widget, attr_name, expected):
+    checkbox = getattr(widget, attr_name)
+    assert checkbox.native.text() == expected
+    assert checkbox.label == expected
+
+
 def test_write_networkx_graph_round_trips_through_pipeline_config(widget):
     widget.write_networkx_graph_widget.value = True
     config = widget._get_current_pipeline_config()
@@ -283,6 +358,42 @@ def test_image_shape_label_shows_shape_on_image_change(widget):
     _select_image(widget, layer)
     widget.image_widget.changed.emit(layer)
     assert "(12, 34, 56)" in widget.image_shape_label.value
+
+
+def test_image_dependent_widgets_sync_for_a_pre_selected_image(widget):
+    # image_widget can already hold a layer at construction time (magicgui
+    # auto-selects one of its choices) without any .changed signal ever
+    # having fired for it - _sync_image_dependent_widgets is what backfills
+    # the shape label / default spacing / spacing warning for that case,
+    # so call it directly rather than through _select_image (which fires
+    # .changed and would mask a regression here).
+    layer = _mock_layer((12, 34, 56))
+    widget.image_widget.choices = (layer,)
+    widget.image_widget.value = layer
+    widget.image_shape_label.value = ""
+    widget.spacing_widget.value = ""
+
+    widget._sync_image_dependent_widgets()
+
+    assert "(12, 34, 56)" in widget.image_shape_label.value
+    assert widget.spacing_widget.value == "1,1,1"
+
+
+def test_image_shape_label_wraps_instead_of_overflowing(widget):
+    # Word wrap alone isn't enough - magicgui's Label backend hard-codes
+    # QSizePolicy.Fixed on both axes, so the label is always sized to its
+    # own unconstrained (one-line) sizeHint and never shrunk by the layout
+    # no matter what setWordWrap() says. The horizontal policy has to be
+    # overridden too (see _prepare_wrapping_label) or the widget's real
+    # bounding box still silently grows past the dock panel instead of
+    # wrapping, and the overflow just runs off-screen.
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QSizePolicy
+
+    native = widget.image_shape_label.native
+    assert native.wordWrap() is True
+    assert native.sizePolicy().horizontalPolicy() == QSizePolicy.Ignored
+    assert native.alignment() & Qt.AlignLeft
 
 
 # -- dependent widgets auto-uncheck ------------------------------------------
@@ -352,6 +463,16 @@ def test_spacing_field_defaults_to_empty_string(widget):
 
 def test_spacing_warning_hidden_by_default(widget):
     assert widget.spacing_warning.visible is False
+
+
+def test_spacing_warning_wraps_instead_of_overflowing(widget):
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QSizePolicy
+
+    native = widget.spacing_warning.native
+    assert native.wordWrap() is True
+    assert native.sizePolicy().horizontalPolicy() == QSizePolicy.Ignored
+    assert native.alignment() & Qt.AlignLeft
 
 
 def test_get_current_spacing_none_with_no_image_selected(widget):
