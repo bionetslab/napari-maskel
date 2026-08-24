@@ -371,11 +371,20 @@ def test_image_dependent_widgets_sync_for_a_pre_selected_image(widget):
 
 
 def test_image_shape_label_wraps_instead_of_overflowing(widget):
-    # Without word wrap, a long one-line shape/spacing message makes the
-    # native QLabel's sizeHint wider than the dock panel, silently growing
-    # the widget's real bounding box off to the right instead of wrapping -
-    # the text then just runs off-screen rather than showing on two lines.
-    assert widget.image_shape_label.native.wordWrap() is True
+    # Word wrap alone isn't enough - magicgui's Label backend hard-codes
+    # QSizePolicy.Fixed on both axes, so the label is always sized to its
+    # own unconstrained (one-line) sizeHint and never shrunk by the layout
+    # no matter what setWordWrap() says. The horizontal policy has to be
+    # overridden too (see _prepare_wrapping_label) or the widget's real
+    # bounding box still silently grows past the dock panel instead of
+    # wrapping, and the overflow just runs off-screen.
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QSizePolicy
+
+    native = widget.image_shape_label.native
+    assert native.wordWrap() is True
+    assert native.sizePolicy().horizontalPolicy() == QSizePolicy.Ignored
+    assert native.alignment() & Qt.AlignLeft
 
 
 # -- dependent widgets auto-uncheck ------------------------------------------
@@ -448,7 +457,13 @@ def test_spacing_warning_hidden_by_default(widget):
 
 
 def test_spacing_warning_wraps_instead_of_overflowing(widget):
-    assert widget.spacing_warning.native.wordWrap() is True
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QSizePolicy
+
+    native = widget.spacing_warning.native
+    assert native.wordWrap() is True
+    assert native.sizePolicy().horizontalPolicy() == QSizePolicy.Ignored
+    assert native.alignment() & Qt.AlignLeft
 
 
 def test_get_current_spacing_none_with_no_image_selected(widget):

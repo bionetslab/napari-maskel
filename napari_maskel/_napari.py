@@ -15,7 +15,7 @@ from napari.layers import Layer, Shapes
 from napari.utils.notifications import show_error, show_info
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QPixmap
-from qtpy.QtWidgets import QFileDialog, QLabel
+from qtpy.QtWidgets import QFileDialog, QLabel, QSizePolicy
 from superqt import QCollapsible
 
 from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
@@ -35,7 +35,7 @@ from maskel.config import (
 )
 
 _LOGO_PATH = Path(__file__).parent / "resources" / "logo.png"
-_LOGO_DISPLAY_HEIGHT = 72
+_LOGO_DISPLAY_HEIGHT = 108
 
 _RADIUS_REQUIRED_PROPS = {
     "mean_radius",
@@ -218,7 +218,7 @@ class MaskAnalysisWidget(Container):
         spacing_group = Container()
 
         self.image_shape_label = Label(value="")
-        self.image_shape_label.native.setWordWrap(True)
+        self._prepare_wrapping_label(self.image_shape_label)
 
         def _update_image_shape_label(*args) -> None:
             img = self.image_widget.value
@@ -233,7 +233,7 @@ class MaskAnalysisWidget(Container):
         self.spacing_widget = extraction_gui.spacing
 
         self.spacing_warning = Label(value="")
-        self.spacing_warning.native.setWordWrap(True)
+        self._prepare_wrapping_label(self.spacing_warning)
         self.spacing_warning.visible = False
 
         def _default_spacing_from_layer(*args) -> None:
@@ -602,6 +602,31 @@ class MaskAnalysisWidget(Container):
         """
         widget.label = text
         widget.text = text
+
+    @staticmethod
+    def _prepare_wrapping_label(label: Label) -> None:
+        """Let a magicgui ``Label`` wrap and shrink instead of growing its
+        parent to fit a long one-line message.
+
+        magicgui's ``Label`` backend hard-codes
+        ``QSizePolicy.Fixed`` on both axes at construction time - the
+        label is always sized to its own unconstrained ``sizeHint()``,
+        never shrunk by the layout, regardless of ``setWordWrap()``. For a
+        label fed from an f-string with unbounded content (an image shape
+        tuple, a validation error), that fixed sizeHint is a full one-line
+        width, which silently grows the whole widget past the dock panel's
+        width rather than wrapping - the overflow just gets clipped
+        off-screen. Overriding the horizontal policy to ``Ignored`` tells
+        the layout to disregard that sizeHint entirely and give the label
+        whatever width the container actually has, which combined with
+        word wrap makes it wrap within that width instead. Left-aligned
+        explicitly since the now-wider-than-its-text box would otherwise
+        leave the default alignment ambiguous to a reader of this code.
+        """
+        native = label.native
+        native.setWordWrap(True)
+        native.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        native.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
     # ------------------------------------------------------------------
     # Config get / set (full PipelineConfig)
