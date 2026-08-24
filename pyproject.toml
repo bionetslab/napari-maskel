@@ -37,7 +37,7 @@ build-backend = "setuptools.build_meta"
 include = ["napari_maskel*"]
 
 [tool.setuptools.package-data]
-napari_maskel = ["napari.yaml"]
+napari_maskel = ["napari.yaml", "resources/*.png"]
 
 [project.entry-points."napari.manifest"]
 napari-maskel = "napari_maskel:napari.yaml"

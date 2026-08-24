@@ -13,7 +13,9 @@ from maskel._io import save_analysis_outputs
 from maskel.pipeline import analyze_segmentation_mask
 from napari.layers import Layer, Shapes
 from napari.utils.notifications import show_error, show_info
-from qtpy.QtWidgets import QFileDialog
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QPixmap
+from qtpy.QtWidgets import QFileDialog, QLabel
 from superqt import QCollapsible
 
 from napari_maskel.napari_layers import extract_skeleton_layers, parse_spacing_input
@@ -31,6 +33,9 @@ from maskel.config import (
     load_pipeline_config,
     save_pipeline_config,
 )
+
+_LOGO_PATH = Path(__file__).parent / "resources" / "logo.png"
+_LOGO_DISPLAY_HEIGHT = 48
 
 _RADIUS_REQUIRED_PROPS = {
     "mean_radius",
@@ -73,6 +78,23 @@ class MaskAnalysisWidget(Container):
         """The widget napari should dock - the scroll-area wrapper, not the
         bare content widget (see the comment in ``__init__``)."""
         return self.root_native_widget
+
+    @staticmethod
+    def _build_logo_label() -> QLabel:
+        """A small, centered banner showing the maskel logo.
+
+        Built as a raw ``QLabel`` inserted directly into the content
+        widget's layout (like the ``QCollapsible`` groups below), not
+        through ``Container.append()`` - see the note on that in this
+        file's module docstring area / CLAUDE.md.
+        """
+        label = QLabel()
+        pixmap = QPixmap(str(_LOGO_PATH))
+        label.setPixmap(
+            pixmap.scaledToHeight(_LOGO_DISPLAY_HEIGHT, Qt.SmoothTransformation)
+        )
+        label.setAlignment(Qt.AlignCenter)
+        return label
 
     def _setup_ui(self):
         # ---------- extraction parameters (magicgui) ----------
@@ -514,6 +536,11 @@ class MaskAnalysisWidget(Container):
         # button) goes straight into the content widget's real Qt layout.
         self.append(self.image_widget)
         content_layout = self._content_native.layout()
+        # Inserted after the append() above (not before) - see the comment
+        # on desync risk just above: a raw insert done *before* self.append()
+        # would still be pushed down to index 1 by append()'s own position
+        # bookkeeping, which is unaware of it.
+        content_layout.insertWidget(0, self._build_logo_label())
 
         self._spacing_collapsible = self._make_collapsible(
             spacing_group, "Physical spacing"

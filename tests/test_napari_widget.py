@@ -93,11 +93,12 @@ def test_all_groups_collapsible_and_expanded_by_default(widget):
 
 
 def test_group_order_matches_original_layout(widget):
-    # image selector, then every group in its original relative order, then
-    # the Analyze button last. Regression test for a bug where mixing
-    # self.append() with raw layout insertions silently reordered widgets
-    # added after the first raw insertion. No separate "Output Directory"
-    # section any more - select_outdir_btn now lives inside "Output Settings".
+    # logo, image selector, then every group in its original relative
+    # order, then the Analyze button last. Regression test for a bug where
+    # mixing self.append() with raw layout insertions silently reordered
+    # widgets added after the first raw insertion. No separate "Output
+    # Directory" section any more - select_outdir_btn now lives inside
+    # "Output Settings".
     layout = widget._content_native.layout()
     titles = []
     for i in range(layout.count()):
@@ -106,6 +107,7 @@ def test_group_order_matches_original_layout(widget):
         titles.append(toggle().text() if toggle else type(wdg).__name__)
 
     assert titles == [
+        "QLabel",
         "QWidget",
         "Physical spacing",
         "Extraction layers",
@@ -123,6 +125,27 @@ def test_image_selector_label_preserved(widget):
 
     labels = [lbl.text() for lbl in widget._content_native.findChildren(QLabel)]
     assert "Input segmentation (labels layer)" in labels
+
+
+# -- logo ---------------------------------------------------------------
+
+
+def test_logo_is_first_widget_in_layout(widget):
+    layout = widget._content_native.layout()
+    from qtpy.QtWidgets import QLabel as _QLabel
+
+    assert isinstance(layout.itemAt(0).widget(), _QLabel)
+
+
+def test_logo_pixmap_loaded_and_scaled_small(widget):
+    from napari_maskel._napari import _LOGO_DISPLAY_HEIGHT
+
+    layout = widget._content_native.layout()
+    logo_label = layout.itemAt(0).widget()
+    pixmap = logo_label.pixmap()
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.height() == _LOGO_DISPLAY_HEIGHT
 
 
 def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widget):
