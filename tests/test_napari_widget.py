@@ -148,6 +148,14 @@ def test_logo_pixmap_loaded_and_scaled_small(widget):
     assert pixmap.height() == _LOGO_DISPLAY_HEIGHT
 
 
+def test_logo_is_left_aligned(widget):
+    from qtpy.QtCore import Qt
+
+    layout = widget._content_native.layout()
+    logo_label = layout.itemAt(0).widget()
+    assert logo_label.alignment() & Qt.AlignLeft
+
+
 def test_show_preprocessed_ordered_before_prune_spurs_and_junction_cleanup(widget):
     names = [w.name for w in widget._extraction_gui]
     assert names.index("show_preprocessed") < names.index("prune_spurs")

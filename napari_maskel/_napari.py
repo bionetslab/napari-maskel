@@ -35,7 +35,7 @@ from maskel.config import (
 )
 
 _LOGO_PATH = Path(__file__).parent / "resources" / "logo.png"
-_LOGO_DISPLAY_HEIGHT = 48
+_LOGO_DISPLAY_HEIGHT = 72
 
 _RADIUS_REQUIRED_PROPS = {
     "mean_radius",
@@ -81,7 +81,7 @@ class MaskAnalysisWidget(Container):
 
     @staticmethod
     def _build_logo_label() -> QLabel:
-        """A small, centered banner showing the maskel logo.
+        """A small, left-aligned banner showing the maskel logo.
 
         Built as a raw ``QLabel`` inserted directly into the content
         widget's layout (like the ``QCollapsible`` groups below), not
@@ -93,7 +93,7 @@ class MaskAnalysisWidget(Container):
         label.setPixmap(
             pixmap.scaledToHeight(_LOGO_DISPLAY_HEIGHT, Qt.SmoothTransformation)
         )
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         return label
 
     def _setup_ui(self):
