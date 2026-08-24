@@ -320,6 +320,14 @@ def test_image_shape_label_shows_shape_on_image_change(widget):
     assert "(12, 34, 56)" in widget.image_shape_label.value
 
 
+def test_image_shape_label_wraps_instead_of_overflowing(widget):
+    # Without word wrap, a long one-line shape/spacing message makes the
+    # native QLabel's sizeHint wider than the dock panel, silently growing
+    # the widget's real bounding box off to the right instead of wrapping -
+    # the text then just runs off-screen rather than showing on two lines.
+    assert widget.image_shape_label.native.wordWrap() is True
+
+
 # -- dependent widgets auto-uncheck ------------------------------------------
 
 
@@ -387,6 +395,10 @@ def test_spacing_field_defaults_to_empty_string(widget):
 
 def test_spacing_warning_hidden_by_default(widget):
     assert widget.spacing_warning.visible is False
+
+
+def test_spacing_warning_wraps_instead_of_overflowing(widget):
+    assert widget.spacing_warning.native.wordWrap() is True
 
 
 def test_get_current_spacing_none_with_no_image_selected(widget):

@@ -196,6 +196,7 @@ class MaskAnalysisWidget(Container):
         spacing_group = Container()
 
         self.image_shape_label = Label(value="")
+        self.image_shape_label.native.setWordWrap(True)
 
         def _update_image_shape_label(*args) -> None:
             img = self.image_widget.value
@@ -210,6 +211,7 @@ class MaskAnalysisWidget(Container):
         self.spacing_widget = extraction_gui.spacing
 
         self.spacing_warning = Label(value="")
+        self.spacing_warning.native.setWordWrap(True)
         self.spacing_warning.visible = False
 
         def _default_spacing_from_layer(*args) -> None:
