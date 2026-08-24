@@ -267,9 +267,9 @@ def test_write_networkx_graph_is_a_write_option(widget):
 # *rendered* checkbox still shows old/auto-derived text. These checks catch
 # that class of bug by reading `.native.text()`, what a user actually sees.
 _CHECKBOX_LABELS = {
-    "extract_branches_widget": "Extract branches",
+    "extract_branches_widget": "Extract branch features",
     "extract_branch_text_widget": "Add branch labels",
-    "extract_summary_widget": "Extract summary statistics",
+    "extract_summary_widget": "Extract object-level features",
     "extract_nodes_widget": "Extract node features",
     "fill_holes_widget": "Fill holes in mask",
     "show_preprocessed_widget": "Show preprocessed mask",
@@ -318,6 +318,25 @@ def test_image_shape_label_shows_shape_on_image_change(widget):
     _select_image(widget, layer)
     widget.image_widget.changed.emit(layer)
     assert "(12, 34, 56)" in widget.image_shape_label.value
+
+
+def test_image_dependent_widgets_sync_for_a_pre_selected_image(widget):
+    # image_widget can already hold a layer at construction time (magicgui
+    # auto-selects one of its choices) without any .changed signal ever
+    # having fired for it - _sync_image_dependent_widgets is what backfills
+    # the shape label / default spacing / spacing warning for that case,
+    # so call it directly rather than through _select_image (which fires
+    # .changed and would mask a regression here).
+    layer = _mock_layer((12, 34, 56))
+    widget.image_widget.choices = (layer,)
+    widget.image_widget.value = layer
+    widget.image_shape_label.value = ""
+    widget.spacing_widget.value = ""
+
+    widget._sync_image_dependent_widgets()
+
+    assert "(12, 34, 56)" in widget.image_shape_label.value
+    assert widget.spacing_widget.value == "1,1,1"
 
 
 def test_image_shape_label_wraps_instead_of_overflowing(widget):

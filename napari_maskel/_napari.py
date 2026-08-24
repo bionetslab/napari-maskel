@@ -241,6 +241,20 @@ class MaskAnalysisWidget(Container):
         self.image_widget.changed.connect(_update_spacing_warning)
         self.spacing_widget.changed.connect(_update_spacing_warning)
 
+        def _sync_image_dependent_widgets(*args) -> None:
+            _update_image_shape_label()
+            _default_spacing_from_layer()
+            _update_spacing_warning()
+
+        self._sync_image_dependent_widgets = _sync_image_dependent_widgets
+
+        # `image_widget` may already have a layer auto-selected at this
+        # point (magicgui picks one during construction, before any of the
+        # above .changed connections existed to react to it) - run this
+        # once now so that layer's shape/default-spacing/warning aren't
+        # left stale just because no *change* event ever fired for it.
+        self._sync_image_dependent_widgets()
+
         spacing_group.append(self.image_shape_label)
         spacing_group.append(self.spacing_widget)
         spacing_group.append(self.spacing_warning)
@@ -251,7 +265,7 @@ class MaskAnalysisWidget(Container):
         extraction_group = Container()
 
         self.extract_branches_widget = extraction_gui.extract_branches
-        self._set_checkbox_text(self.extract_branches_widget, "Extract branches")
+        self._set_checkbox_text(self.extract_branches_widget, "Extract branch features")
 
         self.branch_color_widget = extraction_gui.branch_color_property
         self.branch_color_widget.label = "Branch color by"
@@ -282,7 +296,7 @@ class MaskAnalysisWidget(Container):
 
         self.extract_summary_widget = extraction_gui.extract_summary
         self._set_checkbox_text(
-            self.extract_summary_widget, "Extract summary statistics"
+            self.extract_summary_widget, "Extract object-level features"
         )
         self.extract_summary_widget.changed.connect(self._reconcile_dependent_widgets)
 
