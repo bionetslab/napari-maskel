@@ -62,6 +62,15 @@ def test_constructs_and_is_scrollable(widget):
     assert widget._scrollable is True
 
 
+def test_brand_color_applied_to_checkboxes_and_headers(widget):
+    from napari_maskel._napari import _BRAND_COLOR
+
+    style = widget._content_native.styleSheet()
+    assert "QCheckBox::indicator:checked" in style
+    assert "QPushButton:checked" in style
+    assert _BRAND_COLOR in style
+
+
 def test_native_exposes_the_scroll_area_for_napari(widget):
     # napari's add_dock_widget embeds `widget.native` verbatim, but
     # magicgui's own `.native` deliberately returns the *unwrapped* content

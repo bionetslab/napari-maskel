@@ -37,6 +37,25 @@ from maskel.config import (
 _LOGO_PATH = Path(__file__).parent / "resources" / "logo.png"
 _LOGO_DISPLAY_HEIGHT = 108
 
+_BRAND_COLOR = "#CD53A1"
+# Overrides napari's own (blue-accented) theme qss for just this widget's
+# checkboxes and QCollapsible section headers. Set on the widget's own
+# native container rather than the QApplication, since a widget's own
+# stylesheet takes precedence over an ancestor-applied one for matching
+# selectors - so this only recolors maskel's controls, not napari's.
+# QCollapsible's header is a checkable QPushButton (see _make_collapsible);
+# its `:checked` state is "expanded", which is the default for every
+# section here, so in practice this covers what reads as the header color.
+_BRAND_STYLESHEET = f"""
+QCheckBox::indicator:checked {{
+    background-color: {_BRAND_COLOR};
+    border: 1px solid {_BRAND_COLOR};
+}}
+QPushButton:checked {{
+    background-color: {_BRAND_COLOR};
+}}
+"""
+
 _RADIUS_REQUIRED_PROPS = {
     "mean_radius",
     "std_radius",
@@ -568,6 +587,8 @@ class MaskAnalysisWidget(Container):
             content_layout.addWidget(collapsible)
 
         content_layout.addWidget(self.analyze_btn.native)
+
+        self._content_native.setStyleSheet(_BRAND_STYLESHEET)
 
     @staticmethod
     def _make_collapsible(group: Container, title: str) -> QCollapsible:
