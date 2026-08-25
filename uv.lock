@@ -1901,7 +1901,7 @@ wheels = [
 
 [[package]]
 name = "maskel"
-version = "1.1.0"
+version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -1913,10 +1913,11 @@ dependencies = [
     { name = "pyyaml" },
     { name = "scipy" },
     { name = "skan" },
+    { name = "tifffile" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/00/e1d2e0598223d391307a7846d6f1534cf3c0cc4e02bc288c9eee3089c2cc/maskel-1.1.0.tar.gz", hash = "sha256:719008e4184b4c3f4c8de435eefbfd8fb9de8fdb492005324e573c221b38fcf1", size = 57910, upload-time = "2026-08-21T07:36:26.557Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/f7/7a958b4f67425d63079c39f15ce04097c434cc8280ad2d2db8bdf9f1f4b4/maskel-1.1.1.tar.gz", hash = "sha256:de0c50df4e60a4eb4a2fec30db34c6b67c77aef0974df132e00606865ad10733", size = 58664, upload-time = "2026-08-24T09:22:10.974Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/95/af0303e61f2853a7e199d06c383756a8c8287a5ed00ce138e8b149384b97/maskel-1.1.0-py3-none-any.whl", hash = "sha256:52051e8dc7450614d79e4ba62670e09c79575c513f19d0f9e30f77b88e53c1ae", size = 41212, upload-time = "2026-08-21T07:36:25.327Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/78/70a4bf5f21598f5e8565b8dccf3627ca6d922eb07319f0e947086ffb8dfb/maskel-1.1.1-py3-none-any.whl", hash = "sha256:00029d48f5375b874535e316b9c1bd6a2c7e4c3a1c846d3452b51174f10b10d6", size = 41250, upload-time = "2026-08-24T09:22:09.746Z" },
 ]
 
 [[package]]
@@ -2259,7 +2260,7 @@ wheels = [
 
 [[package]]
 name = "napari-maskel"
-version = "1.1.1"
+version = "1.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "maskel" },
@@ -2280,7 +2281,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "maskel", specifier = ">=1.1.0,<2.0.0" },
+    { name = "maskel", specifier = ">=1.1.1,<2.0.0" },
     { name = "napari", extras = ["all"] },
     { name = "napari-assistant", specifier = ">=0.6.0" },
     { name = "napari-simpleitk-image-processing", specifier = ">=0.4.9" },
