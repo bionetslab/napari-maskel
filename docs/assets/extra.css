@@ -1,0 +1,28 @@
+/* Brand header color (matches the maskel logo's gold trace).
+   mkdocs-material sets these custom properties directly on <body> via
+   [data-md-color-primary=teal], so overriding :root is not enough -
+   the override needs to match that same element. */
+[data-md-color-primary="teal"] {
+  --md-primary-fg-color: #ffc000;
+  --md-primary-fg-color--light: #ffd54f;
+  --md-primary-fg-color--dark: #c99400;
+  --md-primary-bg-color: #1a1a1a;
+  --md-primary-bg-color--light: rgba(0, 0, 0, 0.7);
+}
+
+/* Much larger header logo - the default size is barely visible */
+.md-header__button.md-logo {
+  margin: 0.15rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.8rem;
+  width: auto;
+}
+
+/* Larger header title text - the default is easy to overlook next to the logo */
+.md-header__topic .md-ellipsis {
+  font-size: 1.6rem;
+}
+
