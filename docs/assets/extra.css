@@ -26,3 +26,16 @@
   font-size: 1.6rem;
 }
 
+/* Drop the right-hand "Table of contents" column; left nav is enough.
+   mkdocs-material's own :not([hidden]) rule outranks a plain selector
+   here, and also reserves a margin for it on the content column. */
+.md-sidebar--secondary {
+  display: none !important;
+}
+
+[dir="ltr"] .md-sidebar--secondary:not([hidden]) ~ .md-content > .md-content__inner,
+[dir="rtl"] .md-sidebar--secondary:not([hidden]) ~ .md-content > .md-content__inner {
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+}
+
