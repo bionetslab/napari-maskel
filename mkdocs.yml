@@ -1,0 +1,58 @@
+site_name: napari-maskel
+site_description: napari plugin for maskel - skeletonization and graph-based feature extraction for branching biological structures
+site_url: https://bionetslab.github.io/napari-maskel/
+repo_url: https://github.com/bionetslab/napari-maskel
+repo_name: bionetslab/napari-maskel
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  logo: assets/logo-icon.svg
+  favicon: assets/favicon.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Widget Usage: widget-usage.md
+  - maskel ↗: https://bionetslab.github.io/maskel/
+
+extra_css:
+  - assets/extra.css
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/bionetslab
+  generator: false
