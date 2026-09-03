@@ -1935,7 +1935,7 @@ wheels = [
 
 [[package]]
 name = "maskel"
-version = "1.1.1"
+version = "1.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -1949,9 +1949,9 @@ dependencies = [
     { name = "skan" },
     { name = "tifffile" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/f7/7a958b4f67425d63079c39f15ce04097c434cc8280ad2d2db8bdf9f1f4b4/maskel-1.1.1.tar.gz", hash = "sha256:de0c50df4e60a4eb4a2fec30db34c6b67c77aef0974df132e00606865ad10733", size = 58664, upload-time = "2026-08-24T09:22:10.974Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/06/14afd3a83cc2cb3089f10e2d23a6504527b469baf6c9a0dd0112ab8e5f9b/maskel-1.1.3.tar.gz", hash = "sha256:2fda9a36210a8fbd2ab85d5006b8c2083c131fd00012c48cf6f8f21cc41ca9ca", size = 55868, upload-time = "2026-09-03T14:00:02.101Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/78/70a4bf5f21598f5e8565b8dccf3627ca6d922eb07319f0e947086ffb8dfb/maskel-1.1.1-py3-none-any.whl", hash = "sha256:00029d48f5375b874535e316b9c1bd6a2c7e4c3a1c846d3452b51174f10b10d6", size = 41250, upload-time = "2026-08-24T09:22:09.746Z" },
+    { url = "https://files.pythonhosted.org/packages/37/71/564e0e0a72e54eaf4d013f549883abe6b7c4e38f61a438d426355e67af3c/maskel-1.1.3-py3-none-any.whl", hash = "sha256:02737913eede9d74622a56d72b867763cd82cb0530c59b68cb4688d7ca475077", size = 39963, upload-time = "2026-09-03T14:00:00.785Z" },
 ]
 
 [[package]]
