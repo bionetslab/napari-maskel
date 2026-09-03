@@ -10,7 +10,7 @@ See [Installation](installation.md) to get set up.
 
 ![3D binary input](assets/screenshots/3d-binary-input.png)
 
-This is an example of running maskel on a 3D binary segmentation mask. The data is the [VessAP](https://github.com/vessap/vessap) brain volume (`data/1.nii.gz`), turned into a binary mask with Gaussian blur and Otsu thresholding.
+This is an example of running maskel on a 3D binary segmentation mask. The data is the [VesSAP](https://github.com/vessap/vessap) brain volume (`data/1.nii.gz`), turned into a binary mask with Gaussian blur and Otsu thresholding.
 
 ![3D binary feature table](assets/screenshots/3d-binary-features.png)
 
