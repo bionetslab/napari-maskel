@@ -397,7 +397,7 @@ class MaskAnalysisWidget(Container):
         self._set_checkbox_text(self.prune_spurs_widget, "Prune skeleton spurs")
 
         self.min_spur_length_widget = extraction_gui.min_spur_length
-        self.min_spur_length_widget.label = "Min spur length (pixels)"
+        self.min_spur_length_widget.label = "Min spur length"
         self.min_spur_length_widget.enabled = False
 
         self.spur_iterations_widget = extraction_gui.spur_iterations

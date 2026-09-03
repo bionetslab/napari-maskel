@@ -19,7 +19,7 @@ To test against an unreleased `maskel` checkout instead, point uv at it locally:
 
 ## Usage
 
-Open a segmentation mask (2D or 3D) as a **labels layer**, then run **Analyze mask** from the Maskel plugin menu. See the [Widget Usage](https://bionetslab.github.io/napari-maskel/widget-usage/) docs for a full tour, including config sharing with the CLI, physical spacing, and graph export.
+Open a segmentation mask (2D or 3D) as a **labels layer**, then run **Analyze mask** from the Maskel plugin menu. See the [full documentation](https://bionetslab.github.io/napari-maskel/) for a tour with screenshots, including config sharing with the CLI, physical spacing, and graph export.
 
 ## Tests
 
