@@ -207,3 +207,6 @@ __marimo__/
 
 # excel lock files
 .~lock.*
+
+# Claude Code project instructions (local-only, not shared via the repo)
+CLAUDE.md
