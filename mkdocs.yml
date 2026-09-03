@@ -35,7 +35,6 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
-  - Widget Usage: widget-usage.md
   - maskel ↗: https://bionetslab.github.io/maskel/
 
 extra_css:
