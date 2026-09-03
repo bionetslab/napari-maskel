@@ -6,26 +6,7 @@
 
 napari plugin for [maskel](https://github.com/bionetslab/maskel): skeletonization and graph-based feature extraction for branching biological structures — vasculature, fibers, neurites, and other network-like objects — with interactive visualization of branches and node features.
 
-**Full documentation: https://bionetslab.github.io/napari-maskel/**
-
-## Installation
-
-```sh
-uv sync --extra dev   # + test tools
-napari
-```
-
-To test against an unreleased `maskel` checkout instead, point uv at it locally: `uv sync --extra dev && uv pip install -e ../maskel` (adjust the path), or add a local, untracked `uv.toml` with a `[tool.uv.sources]` override for `maskel`.
-
-## Usage
-
-Open a segmentation mask (2D or 3D) as a **labels layer**, then run **Analyze mask** from the Maskel plugin menu. See the [full documentation](https://bionetslab.github.io/napari-maskel/) for a tour with screenshots, including config sharing with the CLI, physical spacing, and graph export.
-
-## Tests
-
-```sh
-uv sync --extra dev && pytest
-```
+## Full documentation: https://bionetslab.github.io/napari-maskel/
 
 ## License
 
