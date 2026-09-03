@@ -24,7 +24,7 @@ A multi-object instance segmentation map (more than one distinct nonzero label) 
 
 ![2D multi-label output](assets/screenshots/2d-multilabel-output.png)
 
-Every branch, node, and summary point is tagged with the `object_id` it came from, so the per-object feature table stays consistent with the IDs in the original mask. Since this is one frame of a longer video, saving the extraction settings with **Save recipe** lets you run maskel on the rest of the frames — via the [CLI](https://bionetslab.github.io/maskel/cli/) (`maskel run --config`) — without reconfiguring anything by hand. This lets you configure a processing workflow on one example frame and then apply it to the rest, reproducibly extracting temporal morphological features for each cell across the video.
+Every branch, node, and summary point is tagged with the `object_id` it came from, so the per-object feature table stays consistent with the IDs in the original mask. Since this is one frame of a longer video, saving the extraction settings with **Save recipe** lets you run maskel on the rest of the frames — via the [maskel CLI](https://bionetslab.github.io/maskel/#general-usage-of-the-cli) (`maskel run --config`) — without reconfiguring anything by hand. This lets you configure a processing workflow on one example frame and then apply it to the rest, reproducibly extracting temporal morphological features for each cell across the video.
 
 ## General usage
 
@@ -84,7 +84,7 @@ These write results to disk rather than adding napari layers, once an output dir
 
 ## Sharing a config with the CLI
 
-The **Recipe** section's **Save recipe** button exports the current extraction and output settings as a reusable JSON preset — the same preset the [maskel CLI](https://bionetslab.github.io/maskel/cli/) consumes for batch processing (`maskel run --config`). **Load recipe** reads one back into the widget. See the [Configuration Reference](https://bionetslab.github.io/maskel/configuration/) for every field in that schema.
+The **Recipe** section's **Save recipe** button exports the current extraction and output settings as a reusable JSON preset — the same preset the [maskel CLI](https://bionetslab.github.io/maskel/#general-usage-of-the-cli) consumes for batch processing (`maskel run --config`). **Load recipe** reads one back into the widget. See maskel's [Configurable parameters](https://bionetslab.github.io/maskel/#configurable-parameters) for every field in that schema.
 
 ## License
 
