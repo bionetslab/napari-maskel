@@ -431,6 +431,7 @@ class MaskAnalysisWidget(Container):
             value="⚠️ Fractal dimension is invalid for anisotropic spacing "
             "and will be forced to 0.0"
         )
+        self._prepare_wrapping_label(self.fractal_anisotropic_warning)
         self.fractal_anisotropic_warning.visible = False
 
         def _update_fractal_anisotropic_warning(*args) -> None:
