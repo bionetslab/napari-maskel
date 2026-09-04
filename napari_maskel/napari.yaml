@@ -10,8 +10,8 @@ license: MIT
 contributions:
   commands:
   - id: napari-maskel.analyze_mask
-    title: Analyze Mask
+    title: Analyze mask
     python_name: napari_maskel._napari:MaskAnalysisWidget
   widgets:
   - command: napari-maskel.analyze_mask
-    display_name: Analyze Mask
+    display_name: Analyze mask
