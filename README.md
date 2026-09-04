@@ -1,5 +1,5 @@
 # napari-maskel
-
+##### Simon Wittmann, Dominik Pysch, Anna Möller
 [![PyPI version](https://img.shields.io/pypi/v/napari-maskel.svg)](https://pypi.org/project/napari-maskel/)
 [![Python version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
