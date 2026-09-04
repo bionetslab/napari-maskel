@@ -340,3 +340,23 @@ class TestLayerMarkerScale:
             layer for layer in layers if layer[1].get("name") == "test_summary"
         )
         assert summary_layer[1]["canvas_size_limits"] == _POINT_CANVAS_SIZE_LIMITS
+
+    def test_points_supports_canvas_size_limits_detects_real_napari_points(self):
+        # napari[all] has no version floor that could guarantee this kwarg
+        # exists (pinning one breaks installability on Intel Mac - see the
+        # note next to _POINT_SIZE_KWARGS), so this is checked against the
+        # real, currently-installed napari.layers.Points at runtime instead.
+        from napari.layers import Points
+
+        from napari_maskel.napari_layers import _points_supports_canvas_size_limits
+
+        assert _points_supports_canvas_size_limits(Points) is True
+
+    def test_points_supports_canvas_size_limits_false_for_older_signature(self):
+        from napari_maskel.napari_layers import _points_supports_canvas_size_limits
+
+        class _FakeOldPoints:
+            def __init__(self, data, *, size=10, symbol="o"):
+                pass
+
+        assert _points_supports_canvas_size_limits(_FakeOldPoints) is False

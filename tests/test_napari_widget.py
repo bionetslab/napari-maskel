@@ -16,11 +16,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import pytest
-from maskel.config import ExtractionConfig, OutputConfig, PipelineConfig
+from maskel.config import (
+    ExtractionConfig,
+    OutputConfig,
+    PipelineConfig,
+    save_pipeline_config,
+)
 from napari.layers import Shapes
-from qtpy.QtWidgets import QFileDialog, QPushButton, QScrollArea
+from qtpy.QtWidgets import QPushButton, QScrollArea
 
-from napari_maskel import _napari
+import napari_maskel._napari as napari_maskel_module
 from napari_maskel._napari import MaskAnalysisWidget
 
 
@@ -45,16 +50,24 @@ def _mock_layer(shape):
     return layer
 
 
-def _real_image_layer(mask: np.ndarray, name: str = "test_image"):
-    """A mock layer carrying a *real* mask array, for tests that actually
-    run the analysis pipeline (``_on_analyze``) rather than only inspecting
-    widget state - unlike ``_mock_layer``, ``.data``/``.name`` have to be
-    real values here since ``analyze_segmentation_mask``/output-file naming
-    both use them directly."""
+def _small_cross_mask():
+    """A tiny real 2D binary mask, cheap enough for _on_analyze to process
+    within a test - a cross gives at least one junction (so branch/node
+    extraction has something non-trivial to do)."""
+    img = np.zeros((16, 16), dtype=np.uint8)
+    img[8, 2:14] = 1
+    img[2:14, 8] = 1
+    return img
+
+
+def _real_image_layer(data, name="test_image", scale=None):
+    """Like _mock_layer, but with a real ndarray for .data (and a real
+    string .name) - needed wherever the pipeline actually runs on the
+    layer's data, e.g. _on_analyze."""
     layer = MagicMock()
-    layer.data = mask
+    layer.data = data
     layer.name = name
-    layer.scale = tuple(1.0 for _ in mask.shape)
+    layer.scale = scale or tuple(1.0 for _ in range(data.ndim))
     return layer
 
 
@@ -912,3 +925,369 @@ def test_spacing_field_defaults_from_layer_scale_on_image_change(widget):
     _select_image(widget, layer)
     widget.image_widget.changed.emit(layer)
     assert widget.spacing_widget.value == "2,0.5,0.5"
+
+
+# -- fractal-dimension anisotropic-spacing warning ---------------------------
+
+
+def test_fractal_anisotropic_warning_hidden_by_default(widget):
+    assert widget.fractal_anisotropic_warning.visible is False
+
+
+def test_fractal_anisotropic_warning_shown_when_fractal_and_anisotropic(widget):
+    _select_image(widget, _mock_layer((10, 10)))
+    widget.spacing_widget.value = "2.0,0.5"
+    widget.spacing_widget.changed.emit(widget.spacing_widget.value)
+    widget.include_fractal_widget.value = True
+    assert widget.fractal_anisotropic_warning.visible is True
+
+
+def test_fractal_anisotropic_warning_hidden_for_isotropic_spacing(widget):
+    _select_image(widget, _mock_layer((10, 10)))
+    widget.spacing_widget.value = "2.0,2.0"
+    widget.spacing_widget.changed.emit(widget.spacing_widget.value)
+    widget.include_fractal_widget.value = True
+    assert widget.fractal_anisotropic_warning.visible is False
+
+
+def test_fractal_anisotropic_warning_hidden_when_fractal_disabled(widget):
+    _select_image(widget, _mock_layer((10, 10)))
+    widget.spacing_widget.value = "2.0,0.5"
+    widget.spacing_widget.changed.emit(widget.spacing_widget.value)
+    widget.include_fractal_widget.value = True
+    assert widget.fractal_anisotropic_warning.visible is True
+
+    widget.include_fractal_widget.value = False
+    assert widget.fractal_anisotropic_warning.visible is False
+
+
+# -- _on_analyze --------------------------------------------------------------
+
+
+class TestOnAnalyze:
+    def test_no_image_selected_does_nothing(self, widget):
+        assert widget.image_widget.value is None  # no layer selected yet
+        widget._on_analyze()
+        widget.viewer.add_layer.assert_not_called()
+
+    def test_happy_path_adds_layers(self, widget):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+        widget.extract_branches_widget.value = True
+
+        widget._on_analyze()
+
+        assert widget.viewer.add_layer.called
+
+    def test_show_preprocessed_adds_extra_layer(self, widget):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+        widget.fill_holes_widget.value = True
+        widget.show_preprocessed_widget.value = True
+
+        widget._on_analyze()
+
+        added_names = [
+            call.args[0].name for call in widget.viewer.add_layer.call_args_list
+        ]
+        assert f"{layer.name}_preprocessed" in added_names
+
+    def test_layer_create_failure_for_one_layer_does_not_abort_others(
+        self, widget, monkeypatch
+    ):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+        widget.extract_branches_widget.value = True
+
+        real_create = napari_maskel_module.Layer.create
+
+        def flaky_create(data, meta, layer_type):
+            if meta.get("name", "").endswith("_branches"):
+                raise ValueError("boom")
+            return real_create(data, meta, layer_type)
+
+        monkeypatch.setattr(
+            napari_maskel_module.Layer, "create", staticmethod(flaky_create)
+        )
+        infos = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_info", lambda m: infos.append(m)
+        )
+
+        widget._on_analyze()  # must not raise
+
+        assert any("Failed to add layer" in m and "_branches" in m for m in infos)
+        assert widget.viewer.add_layer.called  # other layers still got through
+
+    def test_output_dir_set_writes_files(self, widget, tmp_path):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+        widget._output_dir = tmp_path
+
+        widget._on_analyze()
+
+        out_dir = tmp_path / layer.name
+        assert out_dir.exists()
+        assert (out_dir / f"{layer.name}_skeleton.npy").exists()
+
+    def test_output_write_failure_reports_distinct_message(
+        self, widget, tmp_path, monkeypatch
+    ):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+        widget._output_dir = tmp_path
+
+        def boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(napari_maskel_module, "save_analysis_outputs", boom)
+        errors = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_analyze()  # must not raise
+
+        assert len(errors) == 1
+        assert "saving results failed" in errors[0]
+        assert "Analysis failed" not in errors[0]
+
+    def test_analysis_failure_reports_analysis_failed(self, widget, monkeypatch):
+        layer = _real_image_layer(_small_cross_mask())
+        _select_image(widget, layer)
+
+        def boom(mask, config):
+            raise ValueError("bad mask")
+
+        monkeypatch.setattr(napari_maskel_module, "analyze_segmentation_mask", boom)
+        errors = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_analyze()
+
+        assert len(errors) == 1
+        assert "Analysis failed" in errors[0]
+
+
+# -- config load/save/output-dir dialogs --------------------------------------
+
+
+class TestOnLoadConfig:
+    def test_cancel_is_a_noop(self, widget, monkeypatch):
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getOpenFileName",
+            lambda *a, **k: ("", ""),
+        )
+        infos, errors = [], []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_info", lambda m: infos.append(m)
+        )
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_load_config()
+
+        assert infos == []
+        assert errors == []
+
+    def test_success_updates_widget_state(self, widget, monkeypatch, tmp_path):
+        config = PipelineConfig(
+            extraction=ExtractionConfig(branches=True), output=OutputConfig()
+        )
+        path = tmp_path / "recipe.json"
+        save_pipeline_config(config, path)
+
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getOpenFileName",
+            lambda *a, **k: (str(path), ""),
+        )
+        infos = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_info", lambda m: infos.append(m)
+        )
+
+        widget._on_load_config()
+
+        assert widget.extract_branches_widget.value is True
+        assert infos == ["Configuration loaded"]
+
+    def test_malformed_json_reports_error_instead_of_crashing(
+        self, widget, monkeypatch, tmp_path
+    ):
+        # "extraction" present but not an object - PipelineConfig.from_dict
+        # raises TypeError for this (not ValueError), which is exactly what
+        # the widened except clause now catches instead of crashing.
+        path = tmp_path / "bad.json"
+        path.write_text('{"schema_version": 6, "extraction": "oops", "output": {}}')
+
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getOpenFileName",
+            lambda *a, **k: (str(path), ""),
+        )
+        errors = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_load_config()  # must not raise
+
+        assert len(errors) == 1
+        assert "Failed to load config" in errors[0]
+
+    def test_nonexistent_file_reports_error(self, widget, monkeypatch, tmp_path):
+        path = tmp_path / "missing.json"
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getOpenFileName",
+            lambda *a, **k: (str(path), ""),
+        )
+        errors = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_load_config()
+
+        assert len(errors) == 1
+        assert "Failed to load config" in errors[0]
+
+
+class TestOnSaveConfig:
+    def test_cancel_is_a_noop(self, widget, monkeypatch):
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getSaveFileName",
+            lambda *a, **k: ("", ""),
+        )
+        infos, errors = [], []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_info", lambda m: infos.append(m)
+        )
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_save_config()
+
+        assert infos == []
+        assert errors == []
+
+    def test_success_writes_real_file(self, widget, monkeypatch, tmp_path):
+        widget.extract_branches_widget.value = True
+        path = tmp_path / "out.json"
+
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getSaveFileName",
+            lambda *a, **k: (str(path), ""),
+        )
+        infos = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_info", lambda m: infos.append(m)
+        )
+
+        widget._on_save_config()
+
+        assert path.exists()
+        saved = json.loads(path.read_text())
+        assert saved["extraction"]["branches"] is True
+        assert infos == [f"Configuration saved to {path}"]
+
+    def test_failure_reports_error(self, widget, monkeypatch, tmp_path):
+        path = tmp_path / "out.json"
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getSaveFileName",
+            lambda *a, **k: (str(path), ""),
+        )
+
+        def boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(napari_maskel_module, "save_pipeline_config", boom)
+        errors = []
+        monkeypatch.setattr(
+            napari_maskel_module, "show_error", lambda m: errors.append(m)
+        )
+
+        widget._on_save_config()
+
+        assert len(errors) == 1
+        assert "Failed to save config" in errors[0]
+
+
+class TestOnSelectOutputDir:
+    def test_cancel_leaves_output_dir_unset(self, widget, monkeypatch):
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog, "getExistingDirectory", lambda *a, **k: ""
+        )
+        widget._on_select_output_dir()
+        assert widget._output_dir is None
+
+    def test_success_sets_output_dir_and_updates_button(
+        self, widget, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(
+            napari_maskel_module.QFileDialog,
+            "getExistingDirectory",
+            lambda *a, **k: str(tmp_path),
+        )
+        widget._on_select_output_dir()
+        assert widget._output_dir == tmp_path
+        assert widget.select_outdir_btn.text == str(tmp_path)
+
+
+# -- _recolor_branch_layers ----------------------------------------------------
+
+
+class TestRecolorBranchLayers:
+    @staticmethod
+    def _branch_layer(name, tortuosity_values):
+        data = [np.array([[0, 0], [1, i + 1]]) for i in range(len(tortuosity_values))]
+        return Shapes(
+            data=data,
+            shape_type="line",
+            properties={"tortuosity": tortuosity_values},
+            name=name,
+        )
+
+    def test_non_matching_layer_is_skipped_without_error(self, widget):
+        layer = self._branch_layer("something_else", [1.0, 2.0])
+        widget.viewer.layers = [layer]
+        widget.branch_color_widget.value = "tortuosity"
+        widget._recolor_branch_layers()  # must not raise
+
+    def test_numeric_property_with_spread_uses_colormap(self, widget):
+        layer = self._branch_layer("img_branches", [1.0, 2.0, 5.0])
+        widget.viewer.layers = [layer]
+        widget.branch_color_widget.value = "tortuosity"
+
+        widget._recolor_branch_layers()
+
+        assert layer.edge_color_mode == "colormap"
+        assert layer.edge_colormap.name == "turbo"
+        assert layer.edge_contrast_limits == (1.0, 5.0)
+
+    def test_constant_property_falls_back_to_flat_color(self, widget):
+        layer = self._branch_layer("img_branches", [3.0, 3.0, 3.0])
+        widget.viewer.layers = [layer]
+        widget.branch_color_widget.value = "tortuosity"
+
+        widget._recolor_branch_layers()
+
+        assert layer.edge_color_mode == "direct"
+
+    def test_missing_property_falls_back_to_flat_color(self, widget):
+        layer = self._branch_layer("img_branches", [1.0, 2.0])
+        widget.viewer.layers = [layer]
+        widget.branch_color_widget.value = "mean_radius"  # not on this layer
+
+        widget._recolor_branch_layers()
+
+        assert layer.edge_color_mode == "direct"

@@ -428,24 +428,22 @@ class MaskAnalysisWidget(Container):
         self.include_fractal_widget = extraction_gui.include_fractal
 
         self.fractal_anisotropic_warning = Label(
-            value="⚠️ Fractal dimension is invalid for anisotropic spacing; "
-            "it will be forced to 0.0"
+            value="⚠️ Fractal dimension is invalid for anisotropic spacing "
+            "and will be forced to 0.0"
         )
-        self._prepare_wrapping_label(self.fractal_anisotropic_warning)
         self.fractal_anisotropic_warning.visible = False
 
         def _update_fractal_anisotropic_warning(*args) -> None:
             spacing = self._get_current_spacing()
-            anisotropic = spacing is not None and not all(
+            is_anisotropic = spacing is not None and not all(
                 s == spacing[0] for s in spacing
             )
             self.fractal_anisotropic_warning.visible = (
-                self.include_fractal_widget.value and anisotropic
+                self.include_fractal_widget.value and is_anisotropic
             )
 
         self.include_fractal_widget.changed.connect(_update_fractal_anisotropic_warning)
         self.spacing_widget.changed.connect(_update_fractal_anisotropic_warning)
-        self.image_widget.changed.connect(_update_fractal_anisotropic_warning)
         _update_fractal_anisotropic_warning()
 
         advanced_group.append(self.include_fractal_widget)
@@ -782,9 +780,8 @@ class MaskAnalysisWidget(Container):
             show_info("Configuration loaded")
         except (ValueError, TypeError, OSError) as e:
             # TypeError: PipelineConfig.from_dict raises it for
-            # structurally-wrong-but-syntactically-valid JSON (e.g.
-            # "extraction" not being an object) - a malformed recipe file,
-            # not a bug, so it's reported the same way as the others.
+            # structurally-wrong-but-syntactically-valid recipe JSON (e.g.
+            # "extraction" present but not an object) - not just ValueError.
             show_error(f"Failed to load config: {e}")
 
     def _on_save_config(self) -> None:
@@ -925,19 +922,18 @@ class MaskAnalysisWidget(Container):
                         f"Failed to add layer {meta.get('name', '<unnamed>')}: {e}"
                     )
 
-            # -- save results to disk if output directory is set ----------
-            if self._output_dir is not None:
-                try:
-                    save_analysis_outputs(
-                        self._output_dir, img.name, result, pipeline_config.output
-                    )
-                    show_info(f"Results saved to {self._output_dir / img.name}")
-                except (OSError, ValueError) as e:
-                    # Kept separate from the analysis try/except below: the
-                    # analysis itself already succeeded by this point (the
-                    # layers above were added fine), so a failure here is a
-                    # disk-write problem, not an "analysis failed" one.
-                    show_error(f"Analysis succeeded, but saving results failed: {e}")
-
         except (ValueError, RuntimeError, OSError) as e:
             show_error(f"Analysis failed: {e}")
+            return
+
+        # -- save results to disk if output directory is set - own try/
+        # except so a write failure after a successful analysis is never
+        # conflated with the "Analysis failed" message above. ------------
+        if self._output_dir is not None:
+            try:
+                save_analysis_outputs(
+                    self._output_dir, img.name, result, pipeline_config.output
+                )
+                show_info(f"Results saved to {self._output_dir / img.name}")
+            except (ValueError, OSError) as e:
+                show_error(f"Analysis succeeded, but saving results failed: {e}")
