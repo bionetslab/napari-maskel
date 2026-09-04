@@ -1,11 +1,13 @@
 """High-level napari-layer extraction API."""
 
+import inspect
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from maskel.config import ExtractionConfig
 from maskel.pipeline import AnalysisResult, ObjectResult
+from napari.layers import Points
 
 if TYPE_CHECKING:
     from napari.types import LayerDataTuple  # noqa: F401
@@ -73,6 +75,29 @@ def parse_spacing_input(
 _POINT_CANVAS_SIZE_LIMITS = (4.0, 30.0)
 
 
+# napari[all]'s own version floor can't be pinned to guarantee this kwarg is
+# present: on Intel Mac, napari[all]'s numba upper bound conflicts with
+# maskel's numba floor, so that platform is stuck on an older napari where
+# Points never gained canvas_size_limits. Passing an unsupported kwarg to
+# Layer.create doesn't just skip the sizing behavior - it raises, and the
+# whole points layer silently fails to be added (caught by the per-layer
+# except in _on_analyze). Checking the real constructor signature at import
+# time means every platform still gets a points layer, just without
+# canvas-space size clamping on the (increasingly rare) old-napari one.
+def _points_supports_canvas_size_limits(points_cls) -> bool:
+    """Whether *points_cls* (the real napari.layers.Points, or a fake for
+    testing) accepts a ``canvas_size_limits`` keyword."""
+    return "canvas_size_limits" in inspect.signature(points_cls.__init__).parameters
+
+
+_POINTS_SUPPORTS_CANVAS_SIZE_LIMITS = _points_supports_canvas_size_limits(Points)
+_POINT_SIZE_KWARGS = (
+    {"canvas_size_limits": _POINT_CANVAS_SIZE_LIMITS}
+    if _POINTS_SUPPORTS_CANVAS_SIZE_LIMITS
+    else {}
+)
+
+
 def _proportional_edge_width(image_shape: tuple[int, ...]) -> float:
     """A branch-path edge_width (data-space units) that scales with the
     image's own size, floored at 1.0.
@@ -95,7 +120,7 @@ def extract_skeleton_layers(
     result: AnalysisResult,
     base_name: str,
     config: ExtractionConfig | None = None,
-) -> list["napari.types.LayerDataTuple"]:  # noqa: F821
+) -> list["napari.types.LayerDataTuple"]:  # noqa: F821, UP037
     """Build napari visualization layers from a maskel `AnalysisResult`.
 
     Parameters
@@ -152,7 +177,7 @@ def _extract_radius_layer(
     radius_matrix: np.ndarray,
     skeleton: np.ndarray,
     base_name: str,
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
     """Create an image layer showing per-pixel mask radius on the skeleton."""
     if not np.any(radius_matrix):
         return None
@@ -172,7 +197,7 @@ def _extract_branch_features_layer(
     objects: list[ObjectResult],
     image_shape: tuple[int, ...],
     color_property: str = "tortuosity",
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
     """Build one combined branch-paths layer spanning all objects.
 
     Parameters
@@ -244,9 +269,9 @@ def _extract_branch_features_layer(
 
 
 def _extract_branch_text_layer(
-    branch_layer: "napari.types.LayerDataTuple",  # noqa: F821
+    branch_layer: "napari.types.LayerDataTuple",  # noqa: F821, UP037
     base_name: str,
-) -> "napari.types.LayerDataTuple":  # noqa: F821
+) -> "napari.types.LayerDataTuple":  # noqa: F821, UP037
     path_data = branch_layer[0]
     branch_data = branch_layer[1]["properties"]
 
@@ -279,7 +304,7 @@ def _extract_branch_text_layer(
 def _extract_summary_features_layer(
     base_name: str,
     objects: list[ObjectResult],
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
     """Create a summary point layer, one point per object, at that object's
     own skeleton-graph centroid (in global image coordinates).
 
@@ -310,7 +335,7 @@ def _extract_summary_features_layer(
         "properties": meta_features,
         "symbol": "ring",
         "size": 8,
-        "canvas_size_limits": _POINT_CANVAS_SIZE_LIMITS,
+        **_POINT_SIZE_KWARGS,
         "face_color": "transparent",
         "border_color": "yellow",
         "opacity": 0.9,
@@ -327,7 +352,7 @@ def _extract_summary_features_layer(
 def _extract_node_features_layer(
     base_name: str,
     node_records: list[dict[str, object]],
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
     """Create a points layer showing branch/end nodes (degree != 2), colored
     by degree.
 
@@ -365,7 +390,7 @@ def _extract_node_features_layer(
         "properties": props,
         "symbol": "disc",
         "size": 3,
-        "canvas_size_limits": _POINT_CANVAS_SIZE_LIMITS,
+        **_POINT_SIZE_KWARGS,
         "face_color": "degree",
         "face_colormap": "viridis",
         "opacity": 0.8,
