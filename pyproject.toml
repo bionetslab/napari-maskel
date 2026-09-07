@@ -2,7 +2,7 @@
 name = "napari-maskel"
 license = "MIT"
 
-version = "1.2.0"
+version = "1.2.1"
 description = "napari plugin for maskel: skeletonization and feature extraction for branching structures"
 
 readme = "README.md"
