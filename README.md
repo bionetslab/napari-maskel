@@ -8,7 +8,7 @@ napari plugin for [maskel](https://github.com/bionetslab/maskel): skeletonizatio
 
 ## Quick start
 
-1. Install: `pip install napari-maskel` (installs `maskel` and napari's Qt requirements alongside it).
+1. Install napari itself first if you haven't, with a Qt backend (e.g. `pip install "napari[all]"`), then the plugin: `pip install napari-maskel` (this also installs `maskel`).
 2. In napari, open a segmentation mask (2D or 3D) and convert it to a **labels layer**.
 3. Run **Analyze mask (Maskel)** from the Plugins menu, pick that layer as the input, and configure the extraction/cleanup parameters.
 4. Click **Analyze mask** to add the resulting branches/nodes/summary/radius layers to the viewer, and inspect them with napari's built-in feature table widget.
