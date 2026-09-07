@@ -3,7 +3,7 @@ name = "napari-maskel"
 license = "MIT"
 
 version = "1.2.0"
-description = "napari plugin for maskel: vessel skeletonization and feature extraction"
+description = "napari plugin for maskel: skeletonization and feature extraction for branching structures"
 
 readme = "README.md"
 requires-python = ">=3.14"
