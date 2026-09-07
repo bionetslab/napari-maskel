@@ -66,7 +66,7 @@ Every branch, node, and summary point is tagged with the `object_id` it came fro
 ### Advanced features
 
 - **Fractal dimension** — computes the skeleton's box-counting fractal dimension as a summary feature. Only valid for isotropic voxels, so it's forced to `0.0` (with a warning) if **Spacing** is set and anisotropic.
-- **Radius features** — estimates local vessel radius via a Euclidean distance transform of the segmentation. Adds the `{name}_radius` image layer (per-pixel radius overlaid on the skeleton) and unlocks the radius-based **Branch color by** properties above.
+- **Radius features** — estimates local radius via a Euclidean distance transform of the segmentation. Adds the `{name}_radius` image layer (per-pixel radius overlaid on the skeleton) and unlocks the radius-based **Branch color by** properties above.
 
 ### Output settings
 
