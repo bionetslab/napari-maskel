@@ -7,10 +7,13 @@ description = "napari plugin for maskel: skeletonization and feature extraction 
 
 readme = "README.md"
 requires-python = ">=3.14"
+classifiers = [
+    "Framework :: napari",
+]
 dependencies = [
     "maskel>=2.0.1,<3.0.0",
     "pandas",
-    "napari[all]",
+    "napari",
     "napari-assistant>=0.6.0",
     "napari-simpleitk-image-processing>=0.4.9",
     "napari-skimage>=0.6.0",
@@ -27,6 +30,7 @@ Changelog = "https://github.com/bionetslab/napari-maskel/releases"
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0.2",
+    "napari[pyqt6]",
 ]
 docs = [
     "mkdocs>=1.6",
