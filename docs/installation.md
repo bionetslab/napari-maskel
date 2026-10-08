@@ -1,6 +1,6 @@
 # Installation
 
-napari-maskel requires Python 3.14+.
+napari-maskel requires Python 3.13+.
 
 ## Via napari's plugin manager
 

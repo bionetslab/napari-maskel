@@ -11,6 +11,13 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    env:
+      # uv would otherwise pick the interpreter pinned in .python-version
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -20,7 +27,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v7.0.0
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.1.0
