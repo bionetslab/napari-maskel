@@ -120,7 +120,7 @@ def extract_skeleton_layers(
     result: AnalysisResult,
     base_name: str,
     config: ExtractionConfig | None = None,
-) -> list["napari.types.LayerDataTuple"]:  # noqa: F821, UP037
+) -> list["napari.types.LayerDataTuple"]:  # noqa: F821
     """Build napari visualization layers from a maskel `AnalysisResult`.
 
     Parameters
@@ -177,7 +177,7 @@ def _extract_radius_layer(
     radius_matrix: np.ndarray,
     skeleton: np.ndarray,
     base_name: str,
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Create an image layer showing per-pixel mask radius on the skeleton."""
     if not np.any(radius_matrix):
         return None
@@ -197,7 +197,7 @@ def _extract_branch_features_layer(
     objects: list[ObjectResult],
     image_shape: tuple[int, ...],
     color_property: str = "tortuosity",
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Build one combined branch-paths layer spanning all objects.
 
     Parameters
@@ -269,9 +269,9 @@ def _extract_branch_features_layer(
 
 
 def _extract_branch_text_layer(
-    branch_layer: "napari.types.LayerDataTuple",  # noqa: F821, UP037
+    branch_layer: "napari.types.LayerDataTuple",  # noqa: F821
     base_name: str,
-) -> "napari.types.LayerDataTuple":  # noqa: F821, UP037
+) -> "napari.types.LayerDataTuple":  # noqa: F821
     path_data = branch_layer[0]
     branch_data = branch_layer[1]["properties"]
 
@@ -304,7 +304,7 @@ def _extract_branch_text_layer(
 def _extract_summary_features_layer(
     base_name: str,
     objects: list[ObjectResult],
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Create a summary point layer, one point per object, at that object's
     own skeleton-graph centroid (in global image coordinates).
 
@@ -352,7 +352,7 @@ def _extract_summary_features_layer(
 def _extract_node_features_layer(
     base_name: str,
     node_records: list[dict[str, object]],
-) -> "napari.types.LayerDataTuple | None":  # noqa: F821, UP037
+) -> "napari.types.LayerDataTuple | None":  # noqa: F821
     """Create a points layer showing branch/end nodes (degree != 2), colored
     by degree.
 
