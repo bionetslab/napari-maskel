@@ -11,7 +11,7 @@ classifiers = [
     "Framework :: napari",
 ]
 dependencies = [
-    "maskel>=2.1.0,<3.0.0",
+    "maskel>=2.0.2,<3.0.0",
     "pandas",
     "napari",
     "napari-assistant>=0.6.0",
